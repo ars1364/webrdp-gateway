@@ -45,6 +45,15 @@ export type ConnectionInput = {
   quality: Quality;
 };
 
+export type Recording = {
+  id: string;
+  label: string;
+  target: string;
+  size_bytes: number;
+  started_at: string;
+  ended_at: string | null;
+};
+
 export type Me = {
   username: string;
   role: string;
@@ -89,6 +98,13 @@ export const api = {
   deleteConnection: (id: string) => call<{ ok: boolean }>("DELETE", `/connections/${id}`),
   ticketFor: (connectionId: string) =>
     call<{ ticket: string }>("POST", "/tunnel/ticket", { connection_id: connectionId }),
+  listRecordings: (page = 1) => call<Recording[]>("GET", `/recordings?page=${page}&per_page=100`),
+  deleteRecording: (id: string) => call<{ ok: boolean }>("DELETE", `/recordings/${id}`),
+  recordingBlob: async (id: string): Promise<Blob> => {
+    const res = await fetch(`/api/v1/recordings/${id}/file`, { credentials: "same-origin" });
+    if (!res.ok) throw new ApiError(res.status, "HTTP_" + res.status, "Recording unavailable.");
+    return res.blob();
+  },
   ticketAdHoc: (c: ConnectionInput) =>
     call<{ ticket: string }>("POST", "/tunnel/ticket", { ad_hoc: toInput(c) }),
 };

@@ -16,6 +16,7 @@ import (
 	"github.com/ars1364/webrdp-gateway/backend/internal/drive"
 	"github.com/ars1364/webrdp-gateway/backend/internal/guac"
 	"github.com/ars1364/webrdp-gateway/backend/internal/metrics"
+	"github.com/ars1364/webrdp-gateway/backend/internal/recording"
 	"github.com/ars1364/webrdp-gateway/backend/internal/seal"
 )
 
@@ -37,7 +38,8 @@ type Server struct {
 	ticketRL *rateLimiter
 	upgrader websocket.Upgrader
 	features guac.Features
-	drives   *drive.Manager // nil = file transfer unavailable
+	drives   *drive.Manager   // nil = file transfer unavailable
+	recs     *recording.Store // nil = session recording unavailable
 	metrics  *metrics.Registry
 	log      *slog.Logger
 }
@@ -48,13 +50,14 @@ type Deps struct {
 	Dial    DialFunc
 	Resolve ResolveFunc
 	Drives  *drive.Manager
+	Recs    *recording.Store
 	Metrics *metrics.Registry
 	Log     *slog.Logger
 }
 
 func New(cfg *config.Config, d Deps) *Server {
 	s := &Server{
-		cfg: cfg, repo: d.Repo, sealer: d.Sealer, dial: d.Dial, resolve: d.Resolve, drives: d.Drives,
+		cfg: cfg, repo: d.Repo, sealer: d.Sealer, dial: d.Dial, resolve: d.Resolve, drives: d.Drives, recs: d.Recs,
 		metrics:  d.Metrics,
 		log:      d.Log,
 		tickets:  newTicketStore(30 * time.Second),
@@ -100,6 +103,10 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("POST /api/v1/tunnel/ticket", s.requireAuth(s.createTicket))
 	mux.HandleFunc("GET /api/v1/tunnel", s.tunnel) // session cookie + single-use ticket
 	mux.Handle("GET /api/v1/audit", s.requireAuth(s.listAudit))
+
+	mux.Handle("GET /api/v1/recordings", s.requireAuth(s.listRecordings))
+	mux.Handle("GET /api/v1/recordings/{id}/file", s.requireAuth(s.recordingFile))
+	mux.Handle("DELETE /api/v1/recordings/{id}", s.requireAuth(s.adminOnly(s.idempotent(s.deleteRecording))))
 
 	var h http.Handler = mux
 	h = securityHeaders(h)

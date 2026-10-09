@@ -12,27 +12,32 @@ import (
 )
 
 type Config struct {
-	ListenAddr          string
-	DatabaseURL         string
-	GuacdAddr           string
-	AllowedOrigin       string
-	AllowedHosts        []string
-	CookieSecure        bool
-	SessionTTL          time.Duration
-	AllowPrivateTargets bool
-	MaxTunnels          int
-	MaxTunnelsPerUser   int
-	MaxTunnelDuration   time.Duration
-	AuditRetentionDays  int
-	IdempotencyTTL      time.Duration
-	ClipboardUpload     bool   // local → remote (guacd disable-paste)
-	ClipboardDownload   bool   // remote → local (guacd disable-copy)
-	FileUpload          bool   // local → remote drive (guacd disable-upload)
-	FileDownload        bool   // remote drive → local (guacd disable-download)
-	DriveRoot           string // shared guacd/api volume holding per-session drives
-	MaxDriveBytes       int64
-	KeyID               byte
-	Keys                map[byte][]byte // current + optional previous KEK
+	ListenAddr             string
+	DatabaseURL            string
+	GuacdAddr              string
+	AllowedOrigin          string
+	AllowedHosts           []string
+	CookieSecure           bool
+	SessionTTL             time.Duration
+	AllowPrivateTargets    bool
+	MaxTunnels             int
+	MaxTunnelsPerUser      int
+	MaxTunnelDuration      time.Duration
+	AuditRetentionDays     int
+	IdempotencyTTL         time.Duration
+	ClipboardUpload        bool   // local → remote (guacd disable-paste)
+	ClipboardDownload      bool   // remote → local (guacd disable-copy)
+	FileUpload             bool   // local → remote drive (guacd disable-upload)
+	FileDownload           bool   // remote drive → local (guacd disable-download)
+	DriveRoot              string // shared guacd/api volume holding per-session drives
+	MaxDriveBytes          int64
+	SessionRecording       bool   // guacd records every session (audit)
+	RecordingRoot          string // shared guacd/api volume for recordings
+	RecordingIncludeKeys   bool   // off by default: typed passwords stay out
+	MaxRecordingBytes      int64
+	RecordingRetentionDays int
+	KeyID                  byte
+	Keys                   map[byte][]byte // current + optional previous KEK
 }
 
 func Load() (*Config, error) {
@@ -66,6 +71,15 @@ func Load() (*Config, error) {
 		return err
 	})
 	c.DriveRoot = env("DRIVE_ROOT", "/drives")
+	parse("FEATURE_SESSION_RECORDING", "false", func(v string) (err error) { c.SessionRecording, err = strconv.ParseBool(v); return })
+	parse("RECORDING_INCLUDE_KEYS", "false", func(v string) (err error) { c.RecordingIncludeKeys, err = strconv.ParseBool(v); return })
+	parse("RECORDING_RETENTION_DAYS", "30", func(v string) (err error) { c.RecordingRetentionDays, err = strconv.Atoi(v); return })
+	parse("MAX_RECORDING_MB", "2048", func(v string) error {
+		n, err := strconv.ParseInt(v, 10, 64)
+		c.MaxRecordingBytes = n << 20
+		return err
+	})
+	c.RecordingRoot = env("RECORDING_ROOT", "/recordings")
 	parse("MAX_TUNNELS", "20", func(v string) (err error) { c.MaxTunnels, err = strconv.Atoi(v); return })
 	parse("MAX_TUNNELS_PER_USER", "5", func(v string) (err error) { c.MaxTunnelsPerUser, err = strconv.Atoi(v); return })
 	parse("AUDIT_RETENTION_DAYS", "180", func(v string) (err error) { c.AuditRetentionDays, err = strconv.Atoi(v); return })

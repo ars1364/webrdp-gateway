@@ -59,6 +59,7 @@ this product, with the reason. Keep this file honest; CI checks the parts it can
 | B | Secrets never in JSON | Enforced | `backend-rules.sh` (core types must tag secrets `json:"-"`), `TestConnectionNeverLeaksSecret` |
 | B | Edge UUID validation | Tested | path ids validated before any query |
 | B | File transfer isolation + cap | Tested | random per-session folder (traversal-safe), size watchdog, delete on close, startup purge (`drive_test.go`); filenames audited (`TestUploadNames`) |
+| B | Session recording (audit) | Tested | guacd recording per session, owner-scoped list/stream, admin-only delete, retention + size cap, keystrokes off by default (`recording_handlers_test.go`, `recording_test.go`, `TestRecordingParams`) |
 | B | Queue tables need expiry + reaper | Done | `idempotency_keys.expires_at` + reaper; tickets expire in memory |
 | B | Live push on every mutation | N/A | no live-push channel in this product |
 | B | Multi-step promote in one txn | Done | `rekey` reseal, each migration |

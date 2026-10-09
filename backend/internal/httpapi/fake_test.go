@@ -19,6 +19,7 @@ type fakeRepo struct {
 	conns    map[string]map[string]*core.Connection // userID -> id -> conn
 	audit    []core.AuditEntry
 	idem     map[string]*core.IdemRecord
+	recs     map[string]map[string]*core.Recording
 }
 
 func newFakeRepo() *fakeRepo {
@@ -186,5 +187,58 @@ func (f *fakeRepo) IdemAbort(_ context.Context, uid, key string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.idem, uid+key)
+	return nil
+}
+
+func (f *fakeRepo) CreateRecording(_ context.Context, uid string, r *core.Recording) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.recs == nil {
+		f.recs = map[string]map[string]*core.Recording{}
+	}
+	if f.recs[uid] == nil {
+		f.recs[uid] = map[string]*core.Recording{}
+	}
+	r.StartedAt = time.Now()
+	f.recs[uid][r.ID] = r
+	return nil
+}
+
+func (f *fakeRepo) FinishRecording(_ context.Context, uid, id string, size int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r, ok := f.recs[uid][id]; ok {
+		now := time.Now()
+		r.SizeBytes, r.EndedAt = size, &now
+	}
+	return nil
+}
+
+func (f *fakeRepo) ListRecordings(_ context.Context, uid string, _ core.Page) ([]core.Recording, int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := []core.Recording{}
+	for _, r := range f.recs[uid] {
+		out = append(out, *r)
+	}
+	return out, len(out), nil
+}
+
+func (f *fakeRepo) GetRecording(_ context.Context, uid, id string) (*core.Recording, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r, ok := f.recs[uid][id]; ok {
+		return r, nil
+	}
+	return nil, core.ErrNotFound
+}
+
+func (f *fakeRepo) DeleteRecording(_ context.Context, uid, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, ok := f.recs[uid][id]; !ok {
+		return core.ErrNotFound
+	}
+	delete(f.recs[uid], id)
 	return nil
 }

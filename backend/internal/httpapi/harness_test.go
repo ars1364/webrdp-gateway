@@ -20,6 +20,7 @@ import (
 	"github.com/ars1364/webrdp-gateway/backend/internal/guac"
 	"github.com/ars1364/webrdp-gateway/backend/internal/metrics"
 	"github.com/ars1364/webrdp-gateway/backend/internal/netguard"
+	"github.com/ars1364/webrdp-gateway/backend/internal/recording"
 	"github.com/ars1364/webrdp-gateway/backend/internal/seal"
 )
 
@@ -32,6 +33,7 @@ type harness struct {
 	t      *testing.T
 	repo   *fakeRepo
 	sealer *seal.Sealer
+	recDir string
 	h      http.Handler
 }
 
@@ -50,9 +52,10 @@ func newHarness(t *testing.T) *harness {
 	failDial := func(context.Context, string, guac.Target, guac.Features) (net.Conn, *guac.Reader, string, error) {
 		return nil, nil, "", errors.New("no guacd in tests")
 	}
+	recDir := t.TempDir()
 	srv := New(cfg, Deps{Repo: repo, Sealer: sealer, Dial: failDial, Resolve: netguard.Resolve,
-		Metrics: metrics.New(), Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
-	return &harness{t: t, repo: repo, sealer: sealer, h: srv.Routes()}
+		Recs: recording.New(recDir, 1<<20), Metrics: metrics.New(), Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	return &harness{t: t, repo: repo, sealer: sealer, recDir: recDir, h: srv.Routes()}
 }
 
 // addUser stores a user and returns its TOTP secret.

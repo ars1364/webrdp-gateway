@@ -24,6 +24,7 @@ import (
 	"github.com/ars1364/webrdp-gateway/backend/internal/httpapi"
 	"github.com/ars1364/webrdp-gateway/backend/internal/metrics"
 	"github.com/ars1364/webrdp-gateway/backend/internal/netguard"
+	"github.com/ars1364/webrdp-gateway/backend/internal/recording"
 	"github.com/ars1364/webrdp-gateway/backend/internal/seal"
 	"github.com/ars1364/webrdp-gateway/backend/internal/store"
 )
@@ -81,10 +82,14 @@ func main() {
 	} else if err := drives.PurgeAll(); err != nil {
 		log.Error("drive purge", "err", err)
 	}
+	recs := recording.New(cfg.RecordingRoot, cfg.MaxRecordingBytes)
+	if cfg.SessionRecording && recs == nil {
+		log.Warn("session recording disabled: recording root not writable", "root", cfg.RecordingRoot)
+	}
 	srv := &http.Server{
 		Addr: cfg.ListenAddr,
 		Handler: httpapi.New(cfg, httpapi.Deps{
-			Repo: st, Sealer: sealer, Dial: guac.Dial, Resolve: netguard.Resolve, Drives: drives,
+			Repo: st, Sealer: sealer, Dial: guac.Dial, Resolve: netguard.Resolve, Drives: drives, Recs: recs,
 			Metrics: metrics.New(), Log: log,
 		}).Routes(),
 		ReadHeaderTimeout: 10 * time.Second,
@@ -92,7 +97,7 @@ func main() {
 		IdleTimeout:       120 * time.Second,
 		MaxHeaderBytes:    32 << 10,
 	}
-	go reaper(ctx, st, cfg.AuditRetentionDays, log)
+	go reaper(ctx, st, recs, cfg, log)
 	go func() {
 		log.Info("listening", "addr", cfg.ListenAddr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -107,13 +112,22 @@ func main() {
 }
 
 // reaper enforces retention hourly: expired sessions + idempotency keys,
-// audit rows past AUDIT_RETENTION_DAYS.
-func reaper(ctx context.Context, st *store.Store, auditDays int, log *slog.Logger) {
+// audit rows past AUDIT_RETENTION_DAYS, recordings past RECORDING_RETENTION_DAYS.
+func reaper(ctx context.Context, st *store.Store, recs *recording.Store, cfg *config.Config, log *slog.Logger) {
 	t := time.NewTicker(time.Hour)
 	defer t.Stop()
 	for {
-		if err := st.Reap(ctx, auditDays); err != nil && ctx.Err() == nil {
+		if err := st.Reap(ctx, cfg.AuditRetentionDays); err != nil && ctx.Err() == nil {
 			log.Error("reaper", "err", err)
+		}
+		if recs != nil {
+			ids, err := st.ExpireRecordings(ctx, cfg.RecordingRetentionDays)
+			if err != nil && ctx.Err() == nil {
+				log.Error("recording retention", "err", err)
+			}
+			for _, id := range ids {
+				_ = recs.Remove(id)
+			}
 		}
 		select {
 		case <-ctx.Done():

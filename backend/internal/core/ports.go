@@ -43,6 +43,15 @@ type Idempotency interface {
 	IdemAbort(ctx context.Context, userID, key string) error
 }
 
+// Recordings is the session-recording metadata port (files live elsewhere).
+type Recordings interface {
+	CreateRecording(ctx context.Context, userID string, r *Recording) error
+	FinishRecording(ctx context.Context, userID, id string, size int64) error
+	ListRecordings(ctx context.Context, userID string, p Page) ([]Recording, int, error)
+	GetRecording(ctx context.Context, userID, id string) (*Recording, error)
+	DeleteRecording(ctx context.Context, userID, id string) error
+}
+
 // Repository is everything the HTTP adapter needs from persistence.
 type Repository interface {
 	Users
@@ -50,4 +59,5 @@ type Repository interface {
 	Connections
 	Audit
 	Idempotency
+	Recordings
 }

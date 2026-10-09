@@ -110,6 +110,7 @@ func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *core.Session) 
 			"clipboard_download": s.features.ClipboardDownload,
 			"file_upload":        s.features.FileUpload,
 			"file_download":      s.features.FileDownload,
+			"session_recording":  s.recs != nil && s.cfg.SessionRecording,
 		},
 	}})
 }

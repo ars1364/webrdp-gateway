@@ -53,3 +53,24 @@ func TestFeatureParams(t *testing.T) {
 		})
 	}
 }
+
+func TestRecordingParams(t *testing.T) {
+	tests := []struct {
+		name     string
+		f        Features
+		wantPath string
+		wantKeys string
+	}{
+		{"not recorded", Features{}, "", ""},
+		{"recorded, keys off", Features{RecordingPath: "/recordings", RecordingName: "id1"}, "/recordings", "false"},
+		{"recorded with keys", Features{RecordingPath: "/recordings", RecordingName: "id1", RecordingKeys: true}, "/recordings", "true"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := rdpParams(Target{Width: 800, Height: 600, DPI: 96}, tc.f)
+			if p["recording-path"] != tc.wantPath || p["recording-include-keys"] != tc.wantKeys {
+				t.Fatalf("path=%q keys=%q", p["recording-path"], p["recording-include-keys"])
+			}
+		})
+	}
+}

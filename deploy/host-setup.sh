@@ -58,7 +58,7 @@ ufw status numbered | head -40
 
 # --- App directory ---
 install -d -m 750 /opt/webrdp /opt/webrdp/db
-install -d -o 1000 -g 1000 -m 700 /opt/webrdp/drives   # guacd + api (uid 1000) only
+install -d -o 1000 -g 1000 -m 700 /opt/webrdp/drives /opt/webrdp/recordings   # guacd + api (uid 1000) only
 install -m 640 "$HERE/docker-compose.yml" /opt/webrdp/docker-compose.yml
 install -m 644 "$HERE/db/init-app-role.sh" /opt/webrdp/db/init-app-role.sh  # read by the postgres user
 [ -f /opt/webrdp/.env ] || { install -m 600 "$HERE/.env.example" /opt/webrdp/.env; echo "EDIT /opt/webrdp/.env"; }

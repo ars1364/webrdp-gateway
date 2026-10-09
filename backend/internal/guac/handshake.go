@@ -31,6 +31,9 @@ type Features struct {
 	FileUpload        bool   // browser → "Transfer" drive
 	FileDownload      bool   // drive → browser (files dropped in Transfer\Download)
 	DrivePath         string // per-session directory inside guacd; "" = no drive
+	RecordingPath     string // directory for the session recording; "" = not recorded
+	RecordingName     string // file name (the recording id)
+	RecordingKeys     bool   // include keystrokes (off: passwords stay out)
 }
 
 func (f Features) drive() bool { return f.DrivePath != "" && (f.FileUpload || f.FileDownload) }
@@ -129,6 +132,12 @@ func rdpParams(t Target, f Features) map[string]string {
 		"server-layout":     "en-us-qwerty",
 		"disable-download":  b(!f.FileDownload),
 		"disable-upload":    b(!f.FileUpload),
+	}
+	if f.RecordingPath != "" {
+		params["recording-path"] = f.RecordingPath
+		params["recording-name"] = f.RecordingName
+		params["create-recording-path"] = "true"
+		params["recording-include-keys"] = b(f.RecordingKeys)
 	}
 	for k, v := range qualityParams(t.Quality) {
 		params[k] = v

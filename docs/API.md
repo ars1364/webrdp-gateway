@@ -24,6 +24,9 @@ stored response with `Idempotent-Replayed: true`, the same key on a different bo
 | `POST /api/v1/tunnel/ticket` | session, rate limited | `{connection_id}` or `{ad_hoc:{host,port,…}}` → single-use 30 s ticket (SSRF-checked) |
 | `GET /api/v1/tunnel` | session + `?ticket=` | WebSocket (`guacamole` subprotocol) bridged to guacd → RDP |
 | `GET /api/v1/audit` | session | Paginated audit trail for the current user |
+| `GET /api/v1/recordings` | session | Paginated server-side session recordings of the current user |
+| `GET /api/v1/recordings/{id}/file` | session (owner) | The guacd recording file, for the in-browser player (audited as `recording.view`) |
+| `DELETE /api/v1/recordings/{id}` | session, role `admin` + Idempotency-Key | Delete a recording and its file (audited) |
 
 Error codes: `UNAUTHENTICATED` 401 · `FORBIDDEN` 403 · `BAD_ORIGIN` 403 · `CORS_DISABLED` 403 ·
 `BAD_HOST` 421 · `NOT_FOUND` 404 · `VALIDATION_FAILED` 422 · `TARGET_REJECTED` 422 ·

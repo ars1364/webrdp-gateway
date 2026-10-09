@@ -57,6 +57,16 @@ type AuditEntry struct {
 	CreatedAt time.Time      `json:"created_at"`
 }
 
+// Recording is a server-side session recording (guacd protocol dump).
+type Recording struct {
+	ID        string     `json:"id"`
+	Label     string     `json:"label"`
+	Target    string     `json:"target"`
+	SizeBytes int64      `json:"size_bytes"`
+	StartedAt time.Time  `json:"started_at"`
+	EndedAt   *time.Time `json:"ended_at"`
+}
+
 // Page is a validated, bounded page request (per_page ≤ MaxPerPage).
 type Page struct {
 	Page    int

@@ -121,6 +121,11 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) {
 		feats.DrivePath = path
 		go s.drives.Watch(ctx, path, cancel)
 	}
+	recID := ""
+	if s.recs != nil && s.cfg.SessionRecording {
+		recID = newUUID()
+		feats.RecordingPath, feats.RecordingName, feats.RecordingKeys = s.recs.Root(), recID, s.cfg.RecordingIncludeKeys
+	}
 	conn, rd, uuid, err := s.dial(r.Context(), s.cfg.GuacdAddr, t, feats)
 	if err != nil {
 		s.log.Warn("rdp connect failed", "user", sess.Username, "target", target, "err", err)
@@ -133,7 +138,14 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) {
 		conn.Close()
 		return
 	}
-	s.repo.Audit(r.Context(), sess.UserID, "rdp.open", target, ip, map[string]any{"label": tk.label})
+	s.repo.Audit(r.Context(), sess.UserID, "rdp.open", target, ip, map[string]any{"label": tk.label, "recording": recID})
+	if recID != "" {
+		if err := s.repo.CreateRecording(ctx, sess.UserID, &core.Recording{ID: recID, Label: tk.label, Target: target}); err != nil {
+			s.log.Error("recording row", "correlation_id", correlationFrom(r.Context()), "err", err)
+		}
+		go s.recs.Watch(ctx, recID, cancel)
+		defer func() { _ = s.repo.FinishRecording(context.WithoutCancel(ctx), sess.UserID, recID, s.recs.Size(recID)) }()
+	}
 	s.metrics.Gauge("rdp_sessions_active", 1)
 	guac.Bridge(ws, conn, rd, uuid, guac.BridgeOpts{Ctx: ctx, MaxDur: s.cfg.MaxTunnelDuration,
 		OnFile: func(dir, name string) {

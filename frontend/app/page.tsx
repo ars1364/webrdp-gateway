@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Connection, type ConnectionInput, type Me } from "@/lib/api";
@@ -80,7 +81,8 @@ export default function Home() {
     <main className="mx-auto flex max-w-4xl flex-col gap-5 p-4 sm:p-8">
       <header className="flex items-center gap-3">
         <h1 className="text-xl font-semibold">WebRDP Gateway</h1>
-        <span className="ms-auto text-sm text-ink-2">{me.username}</span>
+        <Link href="/recordings/" className="ms-auto text-sm text-primary underline-offset-2 hover:underline">Recordings</Link>
+        <span className="text-sm text-ink-2">{me.username}</span>
         <Button variant="ghost" onClick={logout}>Sign out</Button>
       </header>
       {error && <Alert>{error}</Alert>}
