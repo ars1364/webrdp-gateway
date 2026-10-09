@@ -40,6 +40,8 @@ func TestCreateConnectionValidation(t *testing.T) {
 		{"host with path", with(validConn(), "host", "a.com/x"), 422, "host"},
 		{"no name", with(validConn(), "name", ""), 422, "name"},
 		{"bad security", with(validConn(), "security", "none"), 422, "security"},
+		{"bad quality", with(validConn(), "quality", "ultra"), 422, "quality"},
+		{"low quality ok", with(validConn(), "quality", "low"), 201, ""},
 		{"unknown field (mass assignment)", with(validConn(), "user_id", "x"), 400, ""},
 		{"not json", "{", 400, ""},
 	}

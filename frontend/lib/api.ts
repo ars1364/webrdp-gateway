@@ -23,11 +23,15 @@ export type Connection = {
   domain: string;
   security: Security;
   ignore_cert: boolean;
+  quality: Quality;
   has_password: boolean;
   updated_at: string;
 };
 
 export type Security = "any" | "nla" | "tls" | "rdp";
+
+// Bandwidth profile: "low" = 16-bit colour, no wallpaper/theming/smoothing.
+export type Quality = "high" | "balanced" | "low";
 
 export type ConnectionInput = {
   name: string;
@@ -38,14 +42,15 @@ export type ConnectionInput = {
   password?: string | null;
   security: Security;
   ignore_cert: boolean;
+  quality: Quality;
 };
 
 export type Me = { username: string; role: string; expires_at: string };
 
 // Send exactly the DTO fields: the API rejects unknown keys (mass-assignment guard).
 export function toInput(c: ConnectionInput): ConnectionInput {
-  const { name, host, port, username, domain, password, security, ignore_cert } = c;
-  return { name, host, port, username, domain, password, security, ignore_cert };
+  const { name, host, port, username, domain, password, security, ignore_cert, quality } = c;
+  return { name, host, port, username, domain, password, security, ignore_cert, quality };
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {

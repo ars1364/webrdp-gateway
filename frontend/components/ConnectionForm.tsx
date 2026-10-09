@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ApiError, type Connection, type ConnectionInput, type FieldError, type Security } from "@/lib/api";
+import { ApiError, type Connection, type ConnectionInput, type FieldError, type Quality, type Security } from "@/lib/api";
 import { Alert, Button, Card, Field } from "./ui";
 
 type Props = {
@@ -12,7 +12,7 @@ type Props = {
 };
 
 const blank: ConnectionInput = {
-  name: "", host: "", port: 3389, username: "", domain: "", password: "", security: "any", ignore_cert: true,
+  name: "", host: "", port: 3389, username: "", domain: "", password: "", security: "any", ignore_cert: true, quality: "balanced",
 };
 
 function fromConn(c: Connection): ConnectionInput {
@@ -75,7 +75,16 @@ export function ConnectionForm({ editing, onConnect, onSave, onCancelEdit }: Pro
             <option value="rdp">RDP (legacy)</option>
           </select>
         </label>
-        <label className="flex items-end gap-2 pb-2 text-sm sm:col-span-2">
+        <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+          <span className="font-medium text-ink-2">Quality</span>
+          <select className="h-10 rounded-lg border border-line bg-surface px-3" value={v.quality}
+            onChange={(e) => set("quality", e.target.value as Quality)}>
+            <option value="high">High (full color, effects)</option>
+            <option value="balanced">Balanced</option>
+            <option value="low">Low bandwidth (slow networks)</option>
+          </select>
+        </label>
+        <label className="flex items-end gap-2 pb-2 text-sm sm:col-span-6">
           <input type="checkbox" className="size-4 accent-primary" checked={v.ignore_cert}
             onChange={(e) => set("ignore_cert", e.target.checked)} />
           <span>Accept self-signed certificate</span>

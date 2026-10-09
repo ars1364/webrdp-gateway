@@ -18,6 +18,7 @@ type Target struct {
 	Domain     string
 	Security   string // any | nla | tls | rdp
 	IgnoreCert bool
+	Quality    string // high | balanced | low
 	Width      int
 	Height     int
 	DPI        int
@@ -99,7 +100,7 @@ func rdpParams(t Target, f Features) map[string]string {
 		}
 		return "false"
 	}
-	return map[string]string{
+	params := map[string]string{
 		"hostname":          t.IP,
 		"port":              strconv.Itoa(t.Port),
 		"username":          t.Username,
@@ -117,11 +118,14 @@ func rdpParams(t Target, f Features) map[string]string {
 		"disable-audio":     "true",
 		"enable-printing":   "false",
 		"server-layout":     "en-us-qwerty",
-		"color-depth":       "24",
 		"disable-download":  b(!f.FileTransfer),
 		"disable-upload":    b(!f.FileTransfer),
 		"create-drive-path": "false",
 	}
+	for k, v := range qualityParams(t.Quality) {
+		params[k] = v
+	}
+	return params
 }
 
 func first(s []string) string {

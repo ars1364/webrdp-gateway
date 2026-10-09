@@ -18,7 +18,7 @@ stored response with `Idempotent-Replayed: true`, the same key on a different bo
 | `POST /api/v1/auth/logout` | session | Revoke the current session |
 | `GET /api/v1/auth/me` | session | Current user, role, session expiry, feature flags |
 | `GET /api/v1/connections` | session | Paginated saved connections (password never returned; `has_password`) |
-| `POST /api/v1/connections` | session + Idempotency-Key | Create a saved connection |
+| `POST /api/v1/connections` | session + Idempotency-Key | Create a saved connection (`quality`: `high` / `balanced` / `low` bandwidth profile) |
 | `PUT /api/v1/connections/{id}` | session + Idempotency-Key | Replace one; `password: null` keeps the stored one |
 | `DELETE /api/v1/connections/{id}` | session + Idempotency-Key | Soft-delete and destroy its sealed password |
 | `POST /api/v1/tunnel/ticket` | session, rate limited | `{connection_id}` or `{ad_hoc:{host,port,…}}` → single-use 30 s ticket (SSRF-checked) |

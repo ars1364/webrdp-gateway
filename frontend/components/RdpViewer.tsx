@@ -39,7 +39,6 @@ export function RdpViewer({ ticket, label, onClose }: Props) {
       clientRef.current = client;
       const display = client.getDisplay();
       const view = display.getElement();
-      view.style.cursor = "none";
       el.appendChild(view);
 
       client.onstatechange = (s: number) => setState(s);
@@ -56,8 +55,11 @@ export function RdpViewer({ ticket, label, onClose }: Props) {
       // applyDisplayScale=true: the client maps screen coords back to remote pixels.
       mouse.onEach(["mousedown", "mouseup", "mousemove"], (ev) =>
         client.sendMouseState((ev as unknown as G.Mouse.Event).state, true));
-      display.showCursor(true);
-      mouse.onEach(["mouseout"], () => display.showCursor(false));
+      // Native cursor: the remote pointer image becomes the real CSS cursor
+      // (no lag, never invisible). Fall back to the software cursor layer.
+      display.oncursor = (canvas: HTMLCanvasElement, x: number, y: number) => {
+        display.showCursor(!mouse.setCursor(canvas, x, y));
+      };
 
       const kb = new Guac.Keyboard(document);
       kb.onkeydown = (k: number) => { client.sendKeyEvent(1, k); return false; };

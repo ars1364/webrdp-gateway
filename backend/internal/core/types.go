@@ -42,6 +42,7 @@ type Connection struct {
 	Domain      string    `json:"domain"`
 	Security    string    `json:"security"`
 	IgnoreCert  bool      `json:"ignore_cert"`
+	Quality     string    `json:"quality"` // high | balanced | low (bandwidth profile)
 	HasPassword bool      `json:"has_password"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`

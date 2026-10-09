@@ -3,7 +3,7 @@ import { api, ApiError, toInput, type ConnectionInput } from "./api";
 
 const conn: ConnectionInput = {
   name: "n", host: "203.0.113.1", port: 6579, username: "u", domain: "", password: "p",
-  security: "any", ignore_cert: true,
+  security: "any", ignore_cert: true, quality: "low",
 };
 
 function mockFetch(status: number, body: unknown) {
@@ -18,7 +18,7 @@ describe("toInput", () => {
   it("drops fields the API would reject as unknown", () => {
     const dirty = { ...conn, id: "x", has_password: true, updated_at: "t" } as unknown as ConnectionInput;
     expect(Object.keys(toInput(dirty)).sort()).toEqual(
-      ["domain", "host", "ignore_cert", "name", "password", "port", "security", "username"]);
+      ["domain", "host", "ignore_cert", "name", "password", "port", "quality", "security", "username"]);
   });
 });
 

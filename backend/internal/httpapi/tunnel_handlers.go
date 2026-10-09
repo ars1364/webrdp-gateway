@@ -40,7 +40,7 @@ func (s *Server) createTicket(w http.ResponseWriter, r *http.Request, sess *core
 			return
 		}
 		t = guac.Target{Port: c.Port, Username: c.Username, Domain: c.Domain,
-			Security: c.Security, IgnoreCert: c.IgnoreCert}
+			Security: c.Security, IgnoreCert: c.IgnoreCert, Quality: c.Quality}
 		if c.PasswordEnc != nil {
 			pw, err := s.sealer.Open(c.PasswordEnc, []byte("conn:"+c.ID))
 			if err != nil {
@@ -57,7 +57,7 @@ func (s *Server) createTicket(w http.ResponseWriter, r *http.Request, sess *core
 		}
 		a := req.AdHoc
 		t = guac.Target{IP: a.Host, Port: a.Port, Username: a.Username, Domain: a.Domain,
-			Security: a.Security, IgnoreCert: a.IgnoreCert}
+			Security: a.Security, IgnoreCert: a.IgnoreCert, Quality: a.Quality}
 		if a.Password != nil {
 			t.Password = *a.Password
 		}

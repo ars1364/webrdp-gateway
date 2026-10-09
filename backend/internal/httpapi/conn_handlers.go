@@ -19,9 +19,13 @@ type connReq struct {
 	Password   *string `json:"password"`
 	Security   string  `json:"security"`
 	IgnoreCert bool    `json:"ignore_cert"`
+	Quality    string  `json:"quality"`
 }
 
-var securityModes = map[string]bool{"any": true, "nla": true, "tls": true, "rdp": true}
+var (
+	securityModes = map[string]bool{"any": true, "nla": true, "tls": true, "rdp": true}
+	qualities     = map[string]bool{"high": true, "balanced": true, "low": true}
+)
 
 func (c *connReq) validate(needName bool) []fieldErr {
 	var errs []fieldErr
@@ -46,6 +50,12 @@ func (c *connReq) validate(needName bool) []fieldErr {
 	}
 	if !securityModes[c.Security] {
 		errs = append(errs, fieldErr{"security", "one of any, nla, tls, rdp"})
+	}
+	if c.Quality == "" {
+		c.Quality = "balanced"
+	}
+	if !qualities[c.Quality] {
+		errs = append(errs, fieldErr{"quality", "one of high, balanced, low"})
 	}
 	return errs
 }
@@ -140,7 +150,8 @@ func (s *Server) deleteConnection(w http.ResponseWriter, r *http.Request, sess *
 
 func (req *connReq) toConn(id string) *core.Connection {
 	return &core.Connection{ID: id, Name: req.Name, Host: req.Host, Port: req.Port,
-		Username: req.Username, Domain: req.Domain, Security: req.Security, IgnoreCert: req.IgnoreCert}
+		Username: req.Username, Domain: req.Domain, Security: req.Security, IgnoreCert: req.IgnoreCert,
+		Quality: req.Quality}
 }
 
 func (s *Server) sealPassword(c *core.Connection, pw *string) error {
