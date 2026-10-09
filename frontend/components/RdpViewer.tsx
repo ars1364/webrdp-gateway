@@ -5,6 +5,7 @@ import type * as G from "guacamole-common-js";
 import { ClipboardSync, type ClipStatus } from "@/lib/clipboardSync";
 import { receiveFile, uploadFile, type Transfer } from "@/lib/fileTransfer";
 import { attachKeyboard } from "@/lib/rdpKeyboard";
+import { openInExplorer } from "@/lib/remoteKeys";
 import { ClipboardChip } from "./ClipboardChip";
 import { ClipboardPanel } from "./ClipboardPanel";
 import { Modal } from "./Modal";
@@ -45,7 +46,15 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
   const guacRef = useRef<typeof G | null>(null);
   const { upload, download } = clipboard;
   const fileUp = files.upload, fileDown = files.download;
-  const track = (t: Transfer) => setTransfers((all) => [t, ...all.filter((x) => x.id !== t.id)].slice(0, 20));
+  const [uploadedToast, setUploadedToast] = useState("");
+  const track = (t: Transfer) => {
+    setTransfers((all) => [t, ...all.filter((x) => x.id !== t.id)].slice(0, 20));
+    if (t.direction === "upload" && t.state === "done") setUploadedToast(t.name);
+  };
+  const openTransfer = () => {
+    setUploadedToast("");
+    if (clientRef.current) void openInExplorer(clientRef.current);
+  };
 
   useEffect(() => {
     let disposed = false;
@@ -210,11 +219,18 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
         className="pointer-events-none fixed -start-[9999px] top-0 size-px opacity-0" />
       {panel === "files" && (
         <TransferPanel transfers={transfers} canUpload={fileUp} canDownload={fileDown} maxMB={files.maxMB}
-          onPick={uploadAll} onClose={() => setPanel(null)} />
+          onPick={uploadAll} onOpenInWindows={openTransfer} onClose={() => setPanel(null)} />
       )}
       {panel === "clipboard" && clip !== "off" && (
         <ClipboardPanel remoteText={remoteText} canSend={upload}
           onSend={(text) => syncRef.current?.send(text)} onClose={() => setPanel(null)} />
+      )}
+      {uploadedToast && (
+        <div role="status" className="absolute bottom-16 start-1/2 flex -translate-x-1/2 items-center gap-3 rounded-lg bg-surface px-3 py-2 text-xs text-ink shadow-sm">
+          <span className="max-w-[40vw] truncate">Uploaded “{uploadedToast}” to \\tsclient\Transfer</span>
+          <Button className="h-7" onClick={openTransfer}>Open in Windows</Button>
+          <Button variant="ghost" className="h-7" onClick={() => setUploadedToast("")} aria-label="Dismiss">✕</Button>
+        </div>
       )}
       {toast && (
         <div role="status" className="pointer-events-none absolute bottom-6 start-1/2 -translate-x-1/2 rounded-lg bg-surface px-3 py-2 text-xs text-ink shadow-sm">
