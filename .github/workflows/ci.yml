@@ -31,6 +31,7 @@ jobs:
       - run: scripts/ci/docs-drift.sh
       - run: scripts/ci/airgap.sh
       - run: scripts/ci/backend-rules.sh
+      - run: scripts/ci/nginx-headers.sh
 
   secrets:
     name: gitleaks (full history)

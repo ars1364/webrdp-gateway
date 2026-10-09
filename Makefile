@@ -10,6 +10,7 @@ guards:
 	scripts/ci/docs-drift.sh
 	scripts/ci/airgap.sh
 	scripts/ci/backend-rules.sh
+	scripts/ci/nginx-headers.sh
 
 backend:
 	cd backend && test -z "$$(gofmt -l .)" && go vet ./... && go test -race -count=1 ./...
