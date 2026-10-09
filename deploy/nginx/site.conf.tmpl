@@ -55,6 +55,13 @@ server {
 
     location = /healthz { return 404; }
 
+    # Prometheus metrics: the API enforces session + admin role (RBAC).
+    location = /metrics {
+        limit_req zone=webrdp_api burst=5 nodelay;
+        proxy_pass http://127.0.0.1:18080;
+        include /etc/nginx/snippets/webrdp-proxy.conf;
+    }
+
     location / {
         limit_req zone=webrdp_api burst=60 nodelay;
         proxy_pass http://127.0.0.1:18081;
