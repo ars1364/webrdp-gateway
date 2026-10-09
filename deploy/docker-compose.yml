@@ -36,7 +36,12 @@ services:
     <<: *hardening
     image: guacamole/guacd:1.5.5@sha256:38232cae271361ef53db46faf5c49fe64049a1320a05b82c597425b69d6ce77e
     read_only: true
-    tmpfs: ["/tmp:size=64m"]
+    # FreeRDP writes its known-hosts/config under $HOME; keep it ephemeral.
+    tmpfs: ["/tmp:size=64m", "/home/guacd:size=16m,uid=1000,gid=1000"]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 4822 || exit 1"]
+      interval: 30s
+      timeout: 5s
     cap_drop: [ALL]
     networks: [rdp]
     mem_limit: 512m
