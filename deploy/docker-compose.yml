@@ -1,0 +1,79 @@
+# Only nginx on the host is public. Containers publish to 127.0.0.1 only;
+# Postgres sits on an internal network with no route out and no port.
+name: webrdp
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    <<: *hardening
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set in .env}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init-app-role.sh:/docker-entrypoint-initdb.d/10-app-role.sh:ro
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    networks: [db]
+    shm_size: 128mb
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d webrdp"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  guacd:
+    <<: *hardening
+    image: guacamole/guacd:1.5.5
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    cap_drop: [ALL]
+    networks: [rdp]
+    mem_limit: 512m
+
+  api:
+    <<: *hardening
+    image: ghcr.io/ars1364/webrdp-gateway-api:${IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: postgres://webrdp:${APP_DB_PASSWORD}@db:5432/webrdp?sslmode=disable
+      APP_KEK: ${APP_KEK:?set in .env}
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:?set in .env}
+      GUACD_ADDR: guacd:4822
+      ALLOW_PRIVATE_TARGETS: ${ALLOW_PRIVATE_TARGETS:-false}
+      SESSION_TTL: ${SESSION_TTL:-12h}
+    read_only: true
+    cap_drop: [ALL]
+    depends_on:
+      db: { condition: service_healthy }
+      guacd: { condition: service_started }
+    networks: [db, rdp]
+    ports: ["127.0.0.1:18080:8080"]
+    mem_limit: 128m
+
+  web:
+    <<: *hardening
+    image: ghcr.io/ars1364/webrdp-gateway-web:${IMAGE_TAG:-latest}
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    cap_drop: [ALL]
+    networks: [web]
+    ports: ["127.0.0.1:18081:8080"]
+    mem_limit: 64m
+
+networks:
+  db: { internal: true }
+  rdp: {}
+  web: {}
+
+volumes:
+  pgdata: {}
