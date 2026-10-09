@@ -202,7 +202,7 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
       <div ref={host} className="relative min-h-0 flex-1 overflow-hidden" />
       {dragging && (
         <div className="pointer-events-none absolute inset-x-6 bottom-6 top-16 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-black/40 text-sm text-white">
-          Drop to upload to Windows (This PC → Transfer)
+          Drop to upload: Windows → This PC → “Transfer on WebRDP”
         </div>
       )}
       {/* Off-screen paste target: receives the native paste event for Ctrl/Cmd+V. */}

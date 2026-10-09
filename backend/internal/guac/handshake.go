@@ -121,6 +121,7 @@ func rdpParams(t Target, f Features) map[string]string {
 		"disable-paste":     b(!f.ClipboardUpload),
 		"enable-drive":      b(f.drive()),
 		"drive-name":        "Transfer",
+		"client-name":       "WebRDP", // Windows shows the drive as "Transfer on WebRDP"
 		"drive-path":        f.DrivePath,
 		"create-drive-path": b(f.drive()),
 		"disable-audio":     "true",

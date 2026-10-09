@@ -27,8 +27,9 @@ export function TransferPanel({ transfers, canUpload, canDownload, maxMB, onPick
       {canUpload && (
         <div className="flex flex-col gap-2">
           <p className="text-xs text-ink-2">
-            Drop files anywhere on the session, or pick them here. They appear in Windows under
-            <b> This PC → Transfer</b>. Limit {maxMB} MB per session.
+            Drop files anywhere on the session, or pick them here. In Windows open
+            <b> File Explorer → This PC → “Transfer on WebRDP”</b> (or type <code>\\tsclient\Transfer</code> in
+            the address bar). Limit {maxMB} MB per session.
           </p>
           <input ref={input} type="file" multiple className="hidden" aria-label="Choose files to upload"
             onChange={(e) => { if (e.target.files?.length) onPick(e.target.files); e.target.value = ""; }} />
@@ -37,7 +38,8 @@ export function TransferPanel({ transfers, canUpload, canDownload, maxMB, onPick
       )}
       {canDownload && (
         <p className="text-xs text-ink-2">
-          To download: in Windows, copy files into <b>Transfer\Download</b>. Your browser saves them automatically.
+          To download: in Windows, copy files into the <b>Download</b> folder of “Transfer on WebRDP”. Your browser
+          saves them automatically.
         </p>
       )}
       {transfers.length > 0 && (
