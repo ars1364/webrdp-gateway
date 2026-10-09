@@ -1,6 +1,5 @@
 // File transfer over the Guacamole "Transfer" drive: uploads stream into the
-// drive root; files Windows drops into Transfer\Download arrive here as
-// downloads (guacd sends a "file" stream).
+// drive root. Downloads live in remoteFs.ts (browser + Transfer\Download).
 import type * as G from "guacamole-common-js";
 
 export type Transfer = {
@@ -31,21 +30,7 @@ export function uploadFile(Guac: typeof G, client: G.Client, file: File, update:
   writer.sendBlob(file);
 }
 
-export function receiveFile(Guac: typeof G, stream: G.InputStream, mimetype: string, name: string, update: Update): void {
-  const t: Transfer = { id: ++seq, name, direction: "download", bytes: 0, total: null, state: "running" };
-  update({ ...t });
-  const reader = new Guac.BlobReader(stream, mimetype);
-  reader.onprogress = (length: number) => {
-    t.bytes += length;
-    update({ ...t });
-  };
-  reader.onend = () => {
-    saveBlob(reader.getBlob(), name);
-    update({ ...t, state: "done" });
-  };
-}
-
-function saveBlob(blob: Blob, name: string): void {
+export function saveBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

@@ -2,7 +2,9 @@
 
 import { useRef } from "react";
 import { formatBytes, type Transfer } from "@/lib/fileTransfer";
+import type { RemoteFs } from "@/lib/remoteFs";
 import { TRANSFER_PATH } from "@/lib/remoteKeys";
+import { FileBrowser } from "./FileBrowser";
 import { Button } from "./ui";
 
 type Props = {
@@ -10,6 +12,8 @@ type Props = {
   canUpload: boolean;
   canDownload: boolean;
   maxMB: number;
+  fs: RemoteFs | null;
+  onTrack: (t: Transfer) => void;
   onPick: (files: FileList) => void;
   onOpenInWindows: () => void;
   onClose: () => void;
@@ -17,7 +21,7 @@ type Props = {
 
 // Files panel (Kasm / Guacamole pattern): upload button, how-to for
 // downloads, and a live list of transfers with progress.
-export function TransferPanel({ transfers, canUpload, canDownload, maxMB, onPick, onOpenInWindows, onClose }: Props) {
+export function TransferPanel({ transfers, canUpload, canDownload, maxMB, fs, onTrack, onPick, onOpenInWindows, onClose }: Props) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <aside aria-label="Files"
@@ -44,10 +48,13 @@ export function TransferPanel({ transfers, canUpload, canDownload, maxMB, onPick
         </div>
       )}
       {canDownload && (
-        <p className="text-xs text-ink-2">
-          To download: in Windows, copy files into <code>{TRANSFER_PATH}\Download</code>. Your browser saves them
-          automatically.
-        </p>
+        <>
+          <FileBrowser fs={fs} onTrack={onTrack} />
+          <p className="text-xs text-ink-2">
+            To download: copy the file into the shared folder in Windows, then click <b>Download</b> above. Files
+            copied into <code>{TRANSFER_PATH}\Download</code> download automatically.
+          </p>
+        </>
       )}
       {transfers.length > 0 && (
         <ul className="flex flex-col gap-2" aria-label="Transfers">

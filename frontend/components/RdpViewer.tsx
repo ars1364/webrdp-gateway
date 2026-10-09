@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type * as G from "guacamole-common-js";
 import { ClipboardSync, type ClipStatus } from "@/lib/clipboardSync";
-import { receiveFile, uploadFile, type Transfer } from "@/lib/fileTransfer";
+import { uploadFile, type Transfer } from "@/lib/fileTransfer";
+import { receiveStream, RemoteFs } from "@/lib/remoteFs";
 import { attachKeyboard } from "@/lib/rdpKeyboard";
 import { openInExplorer } from "@/lib/remoteKeys";
 import { ClipboardChip } from "./ClipboardChip";
@@ -47,6 +48,7 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
   const { upload, download } = clipboard;
   const fileUp = files.upload, fileDown = files.download;
   const [uploadedToast, setUploadedToast] = useState("");
+  const [fs, setFs] = useState<RemoteFs | null>(null);
   const track = (t: Transfer) => {
     setTransfers((all) => [t, ...all.filter((x) => x.id !== t.id)].slice(0, 20));
     if (t.direction === "upload" && t.state === "done") setUploadedToast(t.name);
@@ -70,10 +72,12 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
       clientRef.current = client;
       guacRef.current = Guac;
       if (fileDown) {
+        // Files Windows drops into Transfer\Download arrive as "file" streams.
         client.onfile = (stream: G.InputStream, mimetype: string, name: string) => {
           setPanel("files");
-          receiveFile(Guac, stream, mimetype, name, track);
+          receiveStream(Guac, stream, mimetype, name, track);
         };
+        client.onfilesystem = (object: G.Object) => setFs(new RemoteFs(Guac, object));
       }
       const display = client.getDisplay();
       const view = display.getElement();
@@ -219,6 +223,7 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
         className="pointer-events-none fixed -start-[9999px] top-0 size-px opacity-0" />
       {panel === "files" && (
         <TransferPanel transfers={transfers} canUpload={fileUp} canDownload={fileDown} maxMB={files.maxMB}
+          fs={fs} onTrack={track}
           onPick={uploadAll} onOpenInWindows={openTransfer} onClose={() => setPanel(null)} />
       )}
       {panel === "clipboard" && clip !== "off" && (
