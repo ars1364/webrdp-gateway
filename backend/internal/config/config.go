@@ -1,4 +1,5 @@
-// Package config loads runtime configuration from environment variables only.
+// Package config loads runtime configuration from environment variables only
+// (12-factor). See deploy/.env.example for every key.
 package config
 
 import (
@@ -6,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -14,10 +16,17 @@ type Config struct {
 	DatabaseURL         string
 	GuacdAddr           string
 	AllowedOrigin       string
+	AllowedHosts        []string
 	CookieSecure        bool
 	SessionTTL          time.Duration
 	AllowPrivateTargets bool
-	KEK                 []byte
+	MaxTunnels          int
+	MaxTunnelsPerUser   int
+	MaxTunnelDuration   time.Duration
+	AuditRetentionDays  int
+	IdempotencyTTL      time.Duration
+	KeyID               byte
+	Keys                map[byte][]byte // current + optional previous KEK
 }
 
 func Load() (*Config, error) {
@@ -27,28 +36,88 @@ func Load() (*Config, error) {
 		GuacdAddr:     env("GUACD_ADDR", "guacd:4822"),
 		AllowedOrigin: os.Getenv("ALLOWED_ORIGIN"),
 	}
-	var err error
-	if c.CookieSecure, err = strconv.ParseBool(env("COOKIE_SECURE", "true")); err != nil {
-		return nil, fmt.Errorf("COOKIE_SECURE: %w", err)
+	var errs []string
+	parse := func(key, def string, fn func(string) error) {
+		if err := fn(env(key, def)); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", key, err))
+		}
 	}
-	if c.AllowPrivateTargets, err = strconv.ParseBool(env("ALLOW_PRIVATE_TARGETS", "false")); err != nil {
-		return nil, fmt.Errorf("ALLOW_PRIVATE_TARGETS: %w", err)
-	}
-	if c.SessionTTL, err = time.ParseDuration(env("SESSION_TTL", "12h")); err != nil {
-		return nil, fmt.Errorf("SESSION_TTL: %w", err)
-	}
+	parse("COOKIE_SECURE", "true", func(v string) (err error) { c.CookieSecure, err = strconv.ParseBool(v); return })
+	parse("ALLOW_PRIVATE_TARGETS", "false", func(v string) (err error) { c.AllowPrivateTargets, err = strconv.ParseBool(v); return })
+	parse("SESSION_TTL", "12h", func(v string) (err error) { c.SessionTTL, err = time.ParseDuration(v); return })
+	parse("MAX_TUNNEL_DURATION", "8h", func(v string) (err error) { c.MaxTunnelDuration, err = time.ParseDuration(v); return })
+	parse("IDEMPOTENCY_TTL", "24h", func(v string) (err error) { c.IdempotencyTTL, err = time.ParseDuration(v); return })
+	parse("MAX_TUNNELS", "20", func(v string) (err error) { c.MaxTunnels, err = strconv.Atoi(v); return })
+	parse("MAX_TUNNELS_PER_USER", "5", func(v string) (err error) { c.MaxTunnelsPerUser, err = strconv.Atoi(v); return })
+	parse("AUDIT_RETENTION_DAYS", "180", func(v string) (err error) { c.AuditRetentionDays, err = strconv.Atoi(v); return })
+
 	if c.DatabaseURL == "" {
-		return nil, fmt.Errorf("DATABASE_URL is required")
+		errs = append(errs, "DATABASE_URL is required")
 	}
 	if c.AllowedOrigin == "" {
-		return nil, fmt.Errorf("ALLOWED_ORIGIN is required (e.g. https://rdp.example.com)")
+		errs = append(errs, "ALLOWED_ORIGIN is required (e.g. https://rdp.example.com)")
 	}
-	kek, err := base64.StdEncoding.DecodeString(os.Getenv("APP_KEK"))
-	if err != nil || len(kek) != 32 {
-		return nil, fmt.Errorf("APP_KEK must be base64 of exactly 32 bytes (openssl rand -base64 32)")
+	if hosts := env("ALLOWED_HOSTS", strings.TrimPrefix(strings.TrimPrefix(c.AllowedOrigin, "https://"), "http://")); hosts != "" {
+		for _, h := range strings.Split(hosts, ",") {
+			if h = strings.TrimSpace(h); h != "" {
+				c.AllowedHosts = append(c.AllowedHosts, strings.ToLower(h))
+			}
+		}
 	}
-	c.KEK = kek
+	if err := c.loadKeys(); err != nil {
+		errs = append(errs, err.Error())
+	}
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("config: %s", strings.Join(errs, "; "))
+	}
 	return c, nil
+}
+
+// loadKeys reads APP_KEK (+APP_KEK_ID) and, during a rotation, the old key
+// as APP_KEK_PREVIOUS (+APP_KEK_PREVIOUS_ID).
+func (c *Config) loadKeys() error {
+	c.Keys = map[byte][]byte{}
+	id, err := keyID("APP_KEK_ID", "1")
+	if err != nil {
+		return err
+	}
+	k, err := kek("APP_KEK")
+	if err != nil {
+		return err
+	}
+	c.KeyID, c.Keys[id] = id, k
+	if os.Getenv("APP_KEK_PREVIOUS") == "" {
+		return nil
+	}
+	pid, err := keyID("APP_KEK_PREVIOUS_ID", "")
+	if err != nil {
+		return err
+	}
+	if pid == id {
+		return fmt.Errorf("APP_KEK_PREVIOUS_ID must differ from APP_KEK_ID")
+	}
+	pk, err := kek("APP_KEK_PREVIOUS")
+	if err != nil {
+		return err
+	}
+	c.Keys[pid] = pk
+	return nil
+}
+
+func keyID(name, def string) (byte, error) {
+	n, err := strconv.Atoi(env(name, def))
+	if err != nil || n < 1 || n > 255 {
+		return 0, fmt.Errorf("%s must be 1-255", name)
+	}
+	return byte(n), nil
+}
+
+func kek(name string) ([]byte, error) {
+	k, err := base64.StdEncoding.DecodeString(os.Getenv(name))
+	if err != nil || len(k) != 32 {
+		return nil, fmt.Errorf("%s must be base64 of exactly 32 bytes (openssl rand -base64 32)", name)
+	}
+	return k, nil
 }
 
 func env(key, def string) string {

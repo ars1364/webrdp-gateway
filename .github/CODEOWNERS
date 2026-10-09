@@ -1,0 +1,5 @@
+# Every change needs the owner's review; CI/workflow and deploy changes especially.
+*                 @ars1364
+/.github/         @ars1364
+/deploy/          @ars1364
+/scripts/ci/      @ars1364

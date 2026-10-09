@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type * as G from "guacamole-common-js";
+import { Modal } from "./Modal";
 import { Button } from "./ui";
 
 type Props = { ticket: string; label: string; onClose: () => void };
@@ -98,8 +99,8 @@ export function RdpViewer({ ticket, label, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#1a1a1a]" role="dialog" aria-label={`Remote desktop ${label}`}>
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-white/10 bg-[#242424] px-3 text-sm text-white">
+    <Modal variant="fullscreen" label={`Remote desktop ${label}`} onClose={onClose} closeOnEscape={false}>
+      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-white/10 bg-stage-bar px-3 text-sm text-white">
         <span className="truncate font-medium" title={label}>{label}</span>
         <span className="text-white/60">{STATES[state] ?? ""}</span>
         <div className="ms-auto flex gap-2">
@@ -110,13 +111,13 @@ export function RdpViewer({ ticket, label, onClose }: Props) {
           <Button className="h-8" onClick={onClose}>Disconnect</Button>
         </div>
       </div>
-      <div ref={host} className="relative min-h-0 flex-1 overflow-hidden" tabIndex={0} />
+      <div ref={host} className="relative min-h-0 flex-1 overflow-hidden" />
       {(error || state === 5) && (
-        <div className="absolute inset-x-0 top-16 mx-auto w-fit max-w-[90vw] rounded-lg border border-red-200 bg-white px-4 py-3 text-sm text-ink shadow">
+        <div className="absolute inset-x-0 top-16 mx-auto w-fit max-w-[90vw] rounded-lg border border-red-200 bg-surface px-4 py-3 text-sm text-ink shadow">
           <p>{error || "Disconnected."}</p>
           <Button className="mt-2 h-8" onClick={onClose}>Back</Button>
         </div>
       )}
-    </div>
+    </Modal>
   );
 }

@@ -6,6 +6,7 @@ import { api, ApiError, type Connection, type ConnectionInput, type Me } from "@
 import { ConnectionForm } from "@/components/ConnectionForm";
 import { ConnectionList } from "@/components/ConnectionList";
 import { RdpViewer } from "@/components/RdpViewer";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Alert, Button } from "@/components/ui";
 
 type Session = { ticket: string; label: string };
@@ -17,6 +18,7 @@ export default function Home() {
   const [editing, setEditing] = useState<Connection | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [error, setError] = useState("");
+  const [toDelete, setToDelete] = useState<Connection | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -56,9 +58,13 @@ export default function Home() {
   }
 
   async function remove(c: Connection) {
-    if (!window.confirm(`Delete “${c.name}”? Its saved password is destroyed.`)) return;
-    await api.deleteConnection(c.id);
-    setItems(await api.listConnections());
+    setToDelete(null);
+    try {
+      await api.deleteConnection(c.id);
+      setItems(await api.listConnections());
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Network error.");
+    }
   }
 
   async function logout() {
@@ -80,7 +86,11 @@ export default function Home() {
       {error && <Alert>{error}</Alert>}
       <ConnectionForm key={editing?.id ?? "new"} editing={editing} onConnect={connectAdHoc} onSave={save}
         onCancelEdit={() => setEditing(null)} />
-      <ConnectionList items={items} onConnect={connectSaved} onEdit={setEditing} onDelete={remove} />
+      <ConnectionList items={items} onConnect={connectSaved} onEdit={setEditing} onDelete={setToDelete} />
+      {toDelete && (
+        <ConfirmDialog title={`Delete “${toDelete.name}”?`} body="Its saved password is destroyed. This cannot be undone."
+          confirmLabel="Delete" onConfirm={() => remove(toDelete)} onCancel={() => setToDelete(null)} />
+      )}
       {session && <RdpViewer ticket={session.ticket} label={session.label} onClose={() => setSession(null)} />}
     </main>
   );

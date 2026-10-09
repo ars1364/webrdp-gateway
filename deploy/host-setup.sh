@@ -46,7 +46,8 @@ sed "s/__DOMAIN__/$DOMAIN/g" "$HERE/nginx/site.conf.tmpl" > "/etc/nginx/sites-av
 ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
 rm -f /etc/nginx/sites-enabled/default
 sed -i 's/# server_tokens off;/server_tokens off;/' /etc/nginx/nginx.conf
-nginx -t && systemctl reload nginx
+nginx -t
+systemctl reload nginx
 
 # --- Firewall: 443 from Cloudflare only; never touch existing SSH rules ---
 ufw default deny incoming >/dev/null

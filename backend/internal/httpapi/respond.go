@@ -3,8 +3,12 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/ars1364/webrdp-gateway/backend/internal/core"
 )
 
 type fieldErr struct {
@@ -30,7 +34,7 @@ func writeErr(w http.ResponseWriter, status int, code, msg string, details ...fi
 }
 
 func (s *Server) internal(w http.ResponseWriter, r *http.Request, err error) {
-	s.log.Error("internal error", "path", r.URL.Path, "err", err)
+	s.log.Error("internal error", "correlation_id", correlationFrom(r.Context()), "path", r.URL.Path, "err", err)
 	writeErr(w, http.StatusInternalServerError, "INTERNAL", "Something went wrong.")
 }
 
@@ -54,4 +58,35 @@ func decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 		return false
 	}
 	return true
+}
+
+// parsePage reads ?page=1&per_page=50 (per_page capped at core.MaxPerPage).
+func parsePage(w http.ResponseWriter, r *http.Request) (core.Page, bool) {
+	p := core.Page{Page: 1, PerPage: core.DefaultPerPage}
+	q := r.URL.Query()
+	var errs []fieldErr
+	if v := q.Get("page"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 1_000_000 {
+			errs = append(errs, fieldErr{"page", "integer ≥ 1"})
+		}
+		p.Page = n
+	}
+	if v := q.Get("per_page"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > core.MaxPerPage {
+			errs = append(errs, fieldErr{"per_page", fmt.Sprintf("integer 1-%d", core.MaxPerPage)})
+		}
+		p.PerPage = n
+	}
+	if len(errs) > 0 {
+		writeErr(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Bad pagination.", errs...)
+		return p, false
+	}
+	return p, true
+}
+
+func writeList(w http.ResponseWriter, items any, total int, p core.Page) {
+	writeJSON(w, http.StatusOK, map[string]any{"data": items,
+		"meta": map[string]int{"total": total, "page": p.Page, "per_page": p.PerPage}})
 }

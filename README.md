@@ -31,6 +31,18 @@ browser ──HTTPS/WSS──> Cloudflare ──> nginx (host, :443) ──> web
 | Frontend | strict CSP with per-build script hashes (no `unsafe-inline` scripts), `frame-ancestors 'none'`, no-referrer |
 | Audit | logins, connection changes, every RDP open/close/failure with source IP |
 
+## Engineering gates
+
+Every push runs: mechanical guards (300-line files, table-driven handler tests, migration
+up/down pairs, route catalogue drift, air-gap inventory, repo-layer scoping, secret-field and
+SQL rules), gitleaks, gofmt/vet/`go test -race`, govulncheck, Postgres integration tests
+(migrations up→down→up, cross-user isolation, append-only audit), tsc/ESLint (jsx-a11y,
+no inline hex)/Vitest/build/npm audit, trivy (fs + images), SBOMs (syft + BuildKit
+attestations) and CodeQL. Actions and base images are pinned by SHA/digest. Run the same
+locally with `make ci`. Status of every criterion: [`docs/CRITERIA.md`](docs/CRITERIA.md).
+
+Docs: [API catalogue](docs/API.md) · [Security ops](docs/SECURITY.md) · [Air-gap](docs/AIRGAPPED.md)
+
 ## Roadmap
 
 1. ✅ RDP (keyboard, mouse, dynamic resolution, Ctrl+Alt+Del)

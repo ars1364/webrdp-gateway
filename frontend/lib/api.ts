@@ -43,16 +43,20 @@ export type ConnectionInput = {
 export type Me = { username: string; role: string; expires_at: string };
 
 // Send exactly the DTO fields: the API rejects unknown keys (mass-assignment guard).
-function toInput(c: ConnectionInput): ConnectionInput {
+export function toInput(c: ConnectionInput): ConnectionInput {
   const { name, host, port, username, domain, password, security, ignore_cert } = c;
   return { name, host, port, username, domain, password, security, ignore_cert };
 }
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  // Every mutation carries a fresh UUID v4 so a retried request is deduped.
+  if (method !== "GET") headers["Idempotency-Key"] = crypto.randomUUID();
   const res = await fetch(`/api/v1${path}`, {
     method,
     credentials: "same-origin",
-    headers: body === undefined ? {} : { "Content-Type": "application/json" },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));

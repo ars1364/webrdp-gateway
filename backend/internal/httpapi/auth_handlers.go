@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ars1364/webrdp-gateway/backend/internal/auth"
-	"github.com/ars1364/webrdp-gateway/backend/internal/store"
+	"github.com/ars1364/webrdp-gateway/backend/internal/core"
 )
 
 type loginReq struct {
@@ -34,8 +34,8 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	u, err := s.store.UserByName(ctx, req.Username)
-	if errors.Is(err, store.ErrNotFound) {
+	u, err := s.repo.UserByName(ctx, req.Username)
+	if errors.Is(err, core.ErrNotFound) {
 		auth.DummyVerify(req.Password)
 		s.denyLogin(w, r, "", req.Username)
 		return
@@ -44,7 +44,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if u.LockedUntil != nil && u.LockedUntil.After(time.Now()) {
-		s.store.Audit(ctx, u.ID, "login.locked", u.Username, ip, nil)
+		s.repo.Audit(ctx, u.ID, "login.locked", u.Username, ip, nil)
 		writeErr(w, http.StatusLocked, "ACCOUNT_LOCKED", "Account temporarily locked after failed attempts.")
 		return
 	}
@@ -60,11 +60,11 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	}
 	step, totpOK := auth.CheckTOTP(string(secret), req.TOTP, time.Now())
 	if !pwOK || !totpOK || step <= u.LastTOTPStep {
-		_ = s.store.RecordFailedLogin(ctx, u.ID)
+		_ = s.repo.RecordFailedLogin(ctx, u.ID)
 		s.denyLogin(w, r, u.ID, u.Username)
 		return
 	}
-	if err := s.store.RecordLogin(ctx, u.ID, step); err != nil {
+	if err := s.repo.RecordLogin(ctx, u.ID, step); err != nil {
 		s.denyLogin(w, r, u.ID, u.Username) // concurrent replay of the same code
 		return
 	}
@@ -73,7 +73,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
-	if err := s.store.CreateSession(ctx, hash, u.ID, ip, truncate(r.UserAgent(), 256), s.cfg.SessionTTL); err != nil {
+	if err := s.repo.CreateSession(ctx, hash, u.ID, ip, truncate(r.UserAgent(), 256), s.cfg.SessionTTL); err != nil {
 		s.internal(w, r, err)
 		return
 	}
@@ -81,26 +81,27 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		Name: cookieName, Value: token, Path: "/", HttpOnly: true, Secure: s.cfg.CookieSecure,
 		SameSite: http.SameSiteStrictMode, MaxAge: int(s.cfg.SessionTTL.Seconds()),
 	})
-	s.store.Audit(ctx, u.ID, "login.success", u.Username, ip, nil)
+	s.repo.Audit(ctx, u.ID, "login.success", u.Username, ip, nil)
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]string{"username": u.Username, "role": u.Role}})
 }
 
 func (s *Server) denyLogin(w http.ResponseWriter, r *http.Request, userID, username string) {
-	s.store.Audit(r.Context(), userID, "login.failed", truncate(username, 64), clientIP(r), nil)
+	s.metrics.Inc("login_failures_total")
+	s.repo.Audit(r.Context(), userID, "login.failed", truncate(username, 64), clientIP(r), nil)
 	writeErr(w, http.StatusUnauthorized, "INVALID_CREDENTIALS", "Invalid username, password or code.")
 }
 
-func (s *Server) logout(w http.ResponseWriter, r *http.Request, sess *store.Session) {
+func (s *Server) logout(w http.ResponseWriter, r *http.Request, sess *core.Session) {
 	if _, h := s.sessionFrom(r); h != nil {
-		_ = s.store.DeleteSession(r.Context(), h)
+		_ = s.repo.DeleteSession(r.Context(), h)
 	}
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: s.cfg.CookieSecure, SameSite: http.SameSiteStrictMode})
-	s.store.Audit(r.Context(), sess.UserID, "logout", sess.Username, clientIP(r), nil)
+	s.repo.Audit(r.Context(), sess.UserID, "logout", sess.Username, clientIP(r), nil)
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]bool{"ok": true}})
 }
 
-func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *store.Session) {
+func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *core.Session) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{
 		"username": sess.Username, "role": sess.Role, "expires_at": sess.ExpiresAt,
 		"features": map[string]bool{"clipboard": s.features.Clipboard, "file_transfer": s.features.FileTransfer},

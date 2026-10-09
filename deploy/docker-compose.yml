@@ -12,7 +12,7 @@ x-hardening: &hardening
 services:
   db:
     <<: *hardening
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
@@ -34,7 +34,7 @@ services:
 
   guacd:
     <<: *hardening
-    image: guacamole/guacd:1.5.5
+    image: guacamole/guacd:1.5.5@sha256:38232cae271361ef53db46faf5c49fe64049a1320a05b82c597425b69d6ce77e
     read_only: true
     tmpfs: ["/tmp:size=64m"]
     cap_drop: [ALL]
@@ -47,7 +47,15 @@ services:
     environment:
       DATABASE_URL: postgres://webrdp:${APP_DB_PASSWORD}@db:5432/webrdp?sslmode=disable
       APP_KEK: ${APP_KEK:?set in .env}
+      APP_KEK_ID: ${APP_KEK_ID:-1}
+      APP_KEK_PREVIOUS: ${APP_KEK_PREVIOUS:-}
+      APP_KEK_PREVIOUS_ID: ${APP_KEK_PREVIOUS_ID:-}
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:?set in .env}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-}
+      MAX_TUNNELS: ${MAX_TUNNELS:-20}
+      MAX_TUNNELS_PER_USER: ${MAX_TUNNELS_PER_USER:-5}
+      MAX_TUNNEL_DURATION: ${MAX_TUNNEL_DURATION:-8h}
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-180}
       GUACD_ADDR: guacd:4822
       ALLOW_PRIVATE_TARGETS: ${ALLOW_PRIVATE_TARGETS:-false}
       SESSION_TTL: ${SESSION_TTL:-12h}

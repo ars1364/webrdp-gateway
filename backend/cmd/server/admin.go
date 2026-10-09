@@ -8,8 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/ars1364/webrdp-gateway/backend/internal/auth"
+	"github.com/ars1364/webrdp-gateway/backend/internal/db"
 	"github.com/ars1364/webrdp-gateway/backend/internal/seal"
 	"github.com/ars1364/webrdp-gateway/backend/internal/store"
 )
@@ -54,6 +58,56 @@ func createAdmin(ctx context.Context, st *store.Store, s *seal.Sealer, args []st
 		"otpauth_uri": auth.TOTPURI(*issuer, *username, secret),
 	}, "", "  ")
 	fmt.Println(string(out))
+	return 0
+}
+
+func migrateDown(ctx context.Context, pool *pgxpool.Pool, args []string) int {
+	n := 1
+	if len(args) > 0 {
+		v, err := strconv.Atoi(args[0])
+		if err != nil || v < 1 {
+			fmt.Fprintln(os.Stderr, "usage: server migrate-down N")
+			return 2
+		}
+		n = v
+	}
+	if err := db.MigrateDown(ctx, pool, n); err != nil {
+		return fail(err)
+	}
+	fmt.Printf("reverted %d migration(s)\n", n)
+	return 0
+}
+
+// rekey re-seals every value not yet under the current KEK, in one
+// transaction. Run it after setting APP_KEK(+_ID) to the new key and the old
+// one as APP_KEK_PREVIOUS(+_ID); then drop APP_KEK_PREVIOUS.
+func rekey(ctx context.Context, st *store.Store, s *seal.Sealer) int {
+	rows, err := st.SealedValues(ctx)
+	if err != nil {
+		return fail(err)
+	}
+	var changed []store.SealedRow
+	for _, r := range rows {
+		if s.IsCurrent(r.Value) {
+			continue
+		}
+		aad := []byte("conn:" + r.ID)
+		if r.Table == "users" {
+			aad = []byte("totp:" + r.ID)
+		}
+		pt, err := s.Open(r.Value, aad)
+		if err != nil {
+			return fail(fmt.Errorf("%s %s: %w", r.Table, r.ID, err))
+		}
+		if r.Value, err = s.Seal(pt, aad); err != nil {
+			return fail(err)
+		}
+		changed = append(changed, r)
+	}
+	if err := st.ResealAll(ctx, changed); err != nil {
+		return fail(err)
+	}
+	fmt.Printf("re-sealed %d of %d value(s)\n", len(changed), len(rows))
 	return 0
 }
 

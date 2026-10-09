@@ -67,7 +67,7 @@ export function ConnectionForm({ editing, onConnect, onSave, onCancelEdit }: Pro
           onChange={(e) => set("domain", e.target.value)} />
         <label className="flex flex-col gap-1 text-sm sm:col-span-2">
           <span className="font-medium text-ink-2">Security</span>
-          <select className="h-10 rounded-lg border border-line bg-white px-3" value={v.security}
+          <select className="h-10 rounded-lg border border-line bg-surface px-3" value={v.security}
             onChange={(e) => set("security", e.target.value as Security)}>
             <option value="any">Auto (negotiate)</option>
             <option value="nla">NLA</option>

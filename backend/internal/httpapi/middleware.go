@@ -1,26 +1,34 @@
 package httpapi
 
 import (
-	"bufio"
 	"net"
 	"net/http"
-	"time"
+	"regexp"
+	"strings"
 
 	"github.com/ars1364/webrdp-gateway/backend/internal/auth"
-	"github.com/ars1364/webrdp-gateway/backend/internal/store"
+	"github.com/ars1364/webrdp-gateway/backend/internal/core"
 )
 
 const cookieName = "__Host-rdpgw_session"
 
-type authedHandler func(http.ResponseWriter, *http.Request, *store.Session)
+var (
+	uuidRe   = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	uuidV4Re = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
+)
 
-func (s *Server) sessionFrom(r *http.Request) (*store.Session, []byte) {
+func isUUID(s string) bool   { return uuidRe.MatchString(s) }
+func isUUIDv4(s string) bool { return uuidV4Re.MatchString(s) }
+
+type authedHandler func(http.ResponseWriter, *http.Request, *core.Session)
+
+func (s *Server) sessionFrom(r *http.Request) (*core.Session, []byte) {
 	c, err := r.Cookie(cookieName)
 	if err != nil || c.Value == "" || len(c.Value) > 128 {
 		return nil, nil
 	}
 	h := auth.HashToken(c.Value)
-	sess, err := s.store.SessionByHash(r.Context(), h)
+	sess, err := s.repo.SessionByHash(r.Context(), h)
 	if err != nil {
 		return nil, nil
 	}
@@ -38,12 +46,49 @@ func (s *Server) requireAuth(next authedHandler) http.Handler {
 	})
 }
 
-// checkOrigin blocks cross-site state changes. The session cookie is
-// SameSite=Strict already; this is the second, independent layer.
+// adminOnly is the RBAC gate for operator surfaces (/metrics).
+func (s *Server) adminOnly(next authedHandler) authedHandler {
+	return func(w http.ResponseWriter, r *http.Request, sess *core.Session) {
+		if sess.Role != "admin" {
+			writeErr(w, http.StatusForbidden, "FORBIDDEN", "Admins only.")
+			return
+		}
+		next(w, r, sess)
+	}
+}
+
+// hostValidator rejects requests whose Host header isn't ours (DNS
+// rebinding, cache poisoning). /healthz is exempt for the container probe.
+func (s *Server) hostValidator(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		host := strings.ToLower(r.Host)
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		for _, ok := range s.cfg.AllowedHosts {
+			if host == ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+		writeErr(w, http.StatusMisdirectedRequest, "BAD_HOST", "Unknown host.")
+	})
+}
+
+// checkOrigin is the CORS + CSRF policy: same-origin only. No
+// Access-Control-* headers are ever sent, so browsers block cross-origin
+// reads; state changes additionally need Origin == ALLOWED_ORIGIN.
 func (s *Server) checkOrigin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case http.MethodGet, http.MethodHead, http.MethodOptions:
+		case http.MethodGet, http.MethodHead:
+		case http.MethodOptions:
+			writeErr(w, http.StatusForbidden, "CORS_DISABLED", "Cross-origin requests are not allowed.")
+			return
 		default:
 			if r.Header.Get("Origin") != s.cfg.AllowedOrigin {
 				writeErr(w, http.StatusForbidden, "BAD_ORIGIN", "Cross-origin request refused.")
@@ -64,53 +109,4 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
-}
-
-func (s *Server) recoverer(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		defer func() {
-			if v := recover(); v != nil {
-				s.log.Error("panic", "path", r.URL.Path, "panic", v)
-				writeErr(w, http.StatusInternalServerError, "INTERNAL", "Something went wrong.")
-			}
-		}()
-		next.ServeHTTP(w, r)
-	})
-}
-
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (sw *statusWriter) WriteHeader(code int) {
-	sw.status = code
-	sw.ResponseWriter.WriteHeader(code)
-}
-
-// Unwrap lets http.ResponseController / the WebSocket upgrader reach Hijack.
-func (sw *statusWriter) Unwrap() http.ResponseWriter { return sw.ResponseWriter }
-
-func (sw *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	return http.NewResponseController(sw.ResponseWriter).Hijack()
-}
-
-func (s *Server) logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
-		next.ServeHTTP(sw, r)
-		s.log.Info("http", "method", r.Method, "path", r.URL.Path, "status", sw.status,
-			"ms", time.Since(start).Milliseconds(), "ip", clientIP(r))
-	})
-}
-
-// clientIP trusts X-Real-IP because the API only listens on the internal
-// docker network behind nginx, which sets it from CF-Connecting-IP.
-func clientIP(r *http.Request) string {
-	if ip := r.Header.Get("X-Real-IP"); ip != "" && net.ParseIP(ip) != nil {
-		return ip
-	}
-	host, _, _ := net.SplitHostPort(r.RemoteAddr)
-	return host
 }

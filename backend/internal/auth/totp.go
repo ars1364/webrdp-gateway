@@ -61,3 +61,12 @@ func CheckTOTP(secret, code string, now time.Time) (step int64, ok bool) {
 	}
 	return 0, false
 }
+
+// TOTPCode returns the code for secret at time at (used by tests and tools).
+func TOTPCode(secret string, at time.Time) (string, error) {
+	key, err := b32.DecodeString(strings.ToUpper(strings.TrimSpace(secret)))
+	if err != nil {
+		return "", err
+	}
+	return totpAt(key, at.Unix()/totpStep), nil
+}

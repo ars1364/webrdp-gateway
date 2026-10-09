@@ -5,15 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 
+	"github.com/ars1364/webrdp-gateway/backend/internal/core"
 	"github.com/ars1364/webrdp-gateway/backend/internal/guac"
-	"github.com/ars1364/webrdp-gateway/backend/internal/netguard"
-	"github.com/ars1364/webrdp-gateway/backend/internal/store"
 )
-
-var uuidRe = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // ticketReq: either a saved connection_id, or an ad-hoc target typed in the UI.
 type ticketReq struct {
@@ -21,7 +17,7 @@ type ticketReq struct {
 	AdHoc        *connReq `json:"ad_hoc"`
 }
 
-func (s *Server) createTicket(w http.ResponseWriter, r *http.Request, sess *store.Session) {
+func (s *Server) createTicket(w http.ResponseWriter, r *http.Request, sess *core.Session) {
 	if ok, retry := s.ticketRL.Allow(sess.UserID); !ok {
 		w.Header().Set("Retry-After", strconv.Itoa(retry))
 		writeErr(w, http.StatusTooManyRequests, "RATE_LIMITED", "Too many connection attempts.")
@@ -34,9 +30,9 @@ func (s *Server) createTicket(w http.ResponseWriter, r *http.Request, sess *stor
 	var t guac.Target
 	var label string
 	switch {
-	case req.ConnectionID != "" && uuidRe.MatchString(req.ConnectionID):
-		c, err := s.store.GetConnection(r.Context(), sess.UserID, req.ConnectionID)
-		if errors.Is(err, store.ErrNotFound) {
+	case req.ConnectionID != "" && isUUID(req.ConnectionID):
+		c, err := s.repo.GetConnection(r.Context(), sess.UserID, req.ConnectionID)
+		if errors.Is(err, core.ErrNotFound) {
 			writeErr(w, http.StatusNotFound, "NOT_FOUND", "Connection not found.")
 			return
 		} else if err != nil {
@@ -70,7 +66,7 @@ func (s *Server) createTicket(w http.ResponseWriter, r *http.Request, sess *stor
 		writeErr(w, http.StatusUnprocessableEntity, "VALIDATION_FAILED", "Give connection_id or ad_hoc.")
 		return
 	}
-	ip, err := netguard.Resolve(r.Context(), t.IP, s.cfg.AllowPrivateTargets)
+	ip, err := s.resolve(r.Context(), t.IP, s.cfg.AllowPrivateTargets)
 	if err != nil {
 		writeErr(w, http.StatusUnprocessableEntity, "TARGET_REJECTED", err.Error(),
 			fieldErr{"host", err.Error()})
@@ -104,12 +100,17 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) {
 	t.Height = clamp(atoi(q.Get("height")), 240, 2160, 720)
 	t.DPI = clamp(atoi(q.Get("dpi")), 72, 300, 96)
 
-	conn, rd, uuid, err := guac.Dial(r.Context(), s.cfg.GuacdAddr, t, s.features)
+	if !s.tunnels.Acquire(sess.UserID) {
+		writeErr(w, http.StatusTooManyRequests, "TOO_MANY_SESSIONS", "Too many open remote desktops. Close one first.")
+		return
+	}
+	defer s.tunnels.Release(sess.UserID)
+	conn, rd, uuid, err := s.dial(r.Context(), s.cfg.GuacdAddr, t, s.features)
 	ip := clientIP(r)
 	target := fmt.Sprintf("%s:%d", t.IP, t.Port)
 	if err != nil {
 		s.log.Warn("rdp connect failed", "user", sess.Username, "target", target, "err", err)
-		s.store.Audit(r.Context(), sess.UserID, "rdp.failed", target, ip, map[string]any{"label": tk.label})
+		s.repo.Audit(r.Context(), sess.UserID, "rdp.failed", target, ip, map[string]any{"label": tk.label})
 		writeErr(w, http.StatusBadGateway, "RDP_CONNECT_FAILED", "Could not reach the remote desktop.")
 		return
 	}
@@ -118,9 +119,11 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) {
 		conn.Close()
 		return
 	}
-	s.store.Audit(r.Context(), sess.UserID, "rdp.open", target, ip, map[string]any{"label": tk.label})
-	guac.Bridge(ws, conn, rd, uuid)
-	s.store.Audit(context.WithoutCancel(r.Context()), sess.UserID, "rdp.close", target, ip, map[string]any{"label": tk.label})
+	s.repo.Audit(r.Context(), sess.UserID, "rdp.open", target, ip, map[string]any{"label": tk.label})
+	s.metrics.Gauge("rdp_sessions_active", 1)
+	guac.Bridge(ws, conn, rd, uuid, s.cfg.MaxTunnelDuration)
+	s.metrics.Gauge("rdp_sessions_active", -1)
+	s.repo.Audit(context.WithoutCancel(r.Context()), sess.UserID, "rdp.close", target, ip, map[string]any{"label": tk.label})
 }
 
 func atoi(s string) int {

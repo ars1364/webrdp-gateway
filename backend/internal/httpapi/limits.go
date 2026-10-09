@@ -98,3 +98,37 @@ func (ts *ticketStore) Take(id string) (ticket, bool) {
 	}
 	return t, true
 }
+
+// tunnelLimiter caps concurrent RDP tunnels globally and per user, so one
+// account can't exhaust guacd or the host's memory.
+type tunnelLimiter struct {
+	mu      sync.Mutex
+	max     int
+	perUser int
+	total   int
+	byUser  map[string]int
+}
+
+func newTunnelLimiter(max, perUser int) *tunnelLimiter {
+	return &tunnelLimiter{max: max, perUser: perUser, byUser: map[string]int{}}
+}
+
+func (t *tunnelLimiter) Acquire(userID string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.total >= t.max || t.byUser[userID] >= t.perUser {
+		return false
+	}
+	t.total++
+	t.byUser[userID]++
+	return true
+}
+
+func (t *tunnelLimiter) Release(userID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.total--
+	if t.byUser[userID]--; t.byUser[userID] <= 0 {
+		delete(t.byUser, userID)
+	}
+}

@@ -18,7 +18,8 @@ const (
 // Bridge relays between the browser and guacd until either side closes.
 // guacamole-common-js needs whole instructions per frame and expects the
 // tunnel UUID as the first internal ("0.") instruction.
-func Bridge(ws *websocket.Conn, conn net.Conn, rd *Reader, uuid string) {
+// maxDur is a hard ceiling on session length; 0 disables it.
+func Bridge(ws *websocket.Conn, conn net.Conn, rd *Reader, uuid string, maxDur time.Duration) {
 	var wmu sync.Mutex
 	write := func(msg string) error {
 		wmu.Lock()
@@ -28,6 +29,13 @@ func Bridge(ws *websocket.Conn, conn net.Conn, rd *Reader, uuid string) {
 	}
 	defer ws.Close()
 	defer conn.Close()
+	if maxDur > 0 {
+		t := time.AfterFunc(maxDur, func() {
+			_ = write(Encode("error", "Session time limit reached.", "776"))
+			conn.Close()
+		})
+		defer t.Stop()
+	}
 
 	if err := write(Encode("", uuid)); err != nil {
 		return

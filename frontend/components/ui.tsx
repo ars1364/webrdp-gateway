@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <section className={`rounded-xl border border-line bg-white p-5 shadow-sm ${className}`}>{children}</section>
+    <section className={`rounded-xl border border-line bg-surface p-5 shadow-sm ${className}`}>{children}</section>
   );
 }
 
@@ -17,7 +17,7 @@ export function Field({ label, error, id, className = "", ...rest }: FieldProps)
       <input
         id={fid}
         aria-invalid={!!error}
-        className="h-10 rounded-lg border border-line bg-white px-3 text-ink placeholder:text-muted focus:border-primary"
+        className="h-10 rounded-lg border border-line bg-surface px-3 text-ink placeholder:text-muted focus:border-primary"
         {...rest}
       />
       {error && <span className="text-xs text-red-700">{error}</span>}
@@ -30,8 +30,8 @@ type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" 
 export function Button({ variant = "primary", className = "", ...rest }: BtnProps) {
   const look = {
     primary: "bg-primary text-white hover:bg-primary-hover",
-    ghost: "border border-line bg-white text-ink hover:bg-canvas",
-    danger: "border border-red-200 bg-white text-red-700 hover:bg-red-50",
+    ghost: "border border-line bg-surface text-ink hover:bg-canvas",
+    danger: "border border-red-200 bg-surface text-red-700 hover:bg-red-50",
   }[variant];
   return (
     <button
