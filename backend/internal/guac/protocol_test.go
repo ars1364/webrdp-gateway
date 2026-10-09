@@ -35,3 +35,23 @@ func TestReaderRejectsGarbage(t *testing.T) {
 		}
 	}
 }
+
+func TestUploadNames(t *testing.T) {
+	tests := []struct {
+		name  string
+		frame string
+		want  string
+	}{
+		{"single upload", Encode("file", "1", "text/plain", "report.txt"), "report.txt"},
+		{"batched with mouse", Encode("mouse", "1", "2", "0") + Encode("file", "2", "application/pdf", "ب.pdf"), "ب.pdf"},
+		{"no file", Encode("key", "65", "1"), ""},
+		{"garbage", "4.file,1.", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := strings.Join(uploadNames(tc.frame), ","); got != tc.want {
+				t.Fatalf("got %q want %q", got, tc.want)
+			}
+		})
+	}
+}

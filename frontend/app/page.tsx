@@ -95,6 +95,10 @@ export default function Home() {
         <RdpViewer ticket={session.ticket} label={session.label} clipboard={{
             upload: me.features?.clipboard_upload ?? false, download: me.features?.clipboard_download ?? false,
           }}
+          files={{
+            upload: me.features?.file_upload ?? false, download: me.features?.file_download ?? false,
+            maxMB: me.max_drive_mb ?? 0,
+          }}
           onClose={() => setSession(null)} />
       )}
     </main>

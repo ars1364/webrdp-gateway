@@ -3,15 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import type * as G from "guacamole-common-js";
 import { ClipboardSync, type ClipStatus } from "@/lib/clipboardSync";
+import { receiveFile, uploadFile, type Transfer } from "@/lib/fileTransfer";
 import { attachKeyboard } from "@/lib/rdpKeyboard";
 import { ClipboardChip } from "./ClipboardChip";
 import { ClipboardPanel } from "./ClipboardPanel";
 import { Modal } from "./Modal";
+import { TransferPanel } from "./TransferPanel";
 import { Button } from "./ui";
 
 export type ClipboardPolicy = { upload: boolean; download: boolean };
+export type FilePolicy = { upload: boolean; download: boolean; maxMB: number };
 
-type Props = { ticket: string; label: string; clipboard: ClipboardPolicy; onClose: () => void };
+type Props = { ticket: string; label: string; clipboard: ClipboardPolicy; files: FilePolicy; onClose: () => void };
 
 const STATES = ["Idle", "Connecting…", "Waiting for desktop…", "Connected", "Disconnecting…", "Disconnected"];
 
@@ -26,7 +29,7 @@ const ERRORS: Record<number, string> = {
   516: "Could not resolve or reach the remote desktop.",
 };
 
-export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
+export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const pasteTarget = useRef<HTMLTextAreaElement>(null);
   const clientRef = useRef<G.Client | null>(null);
@@ -36,8 +39,13 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
   const [clip, setClip] = useState<ClipStatus>("off");
   const [remoteText, setRemoteText] = useState("");
   const [toast, setToast] = useState("");
-  const [panel, setPanel] = useState(false);
+  const [panel, setPanel] = useState<"clipboard" | "files" | null>(null);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [dragging, setDragging] = useState(false);
+  const guacRef = useRef<typeof G | null>(null);
   const { upload, download } = clipboard;
+  const fileUp = files.upload, fileDown = files.download;
+  const track = (t: Transfer) => setTransfers((all) => [t, ...all.filter((x) => x.id !== t.id)].slice(0, 20));
 
   useEffect(() => {
     let disposed = false;
@@ -51,6 +59,13 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
       const tunnel = new Guac.WebSocketTunnel("/api/v1/tunnel");
       const client = new Guac.Client(tunnel);
       clientRef.current = client;
+      guacRef.current = Guac;
+      if (fileDown) {
+        client.onfile = (stream: G.InputStream, mimetype: string, name: string) => {
+          setPanel("files");
+          receiveFile(Guac, stream, mimetype, name, track);
+        };
+      }
       const display = client.getDisplay();
       const view = display.getElement();
       el.appendChild(view);
@@ -122,7 +137,37 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
       clearTimeout(toastTimer);
       cleanup();
     };
-  }, [ticket, upload, download]);
+  }, [ticket, upload, download, fileDown]);
+
+  // Drag-and-drop uploads onto the session area.
+  const uploadRef = useRef<(l: FileList) => void>(() => {});
+  useEffect(() => {
+    const el = host.current;
+    if (!el || !fileUp) return;
+    const over = (e: DragEvent) => { e.preventDefault(); setDragging(true); };
+    const leave = () => setDragging(false);
+    const drop = (e: DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      if (e.dataTransfer?.files.length) uploadRef.current(e.dataTransfer.files);
+    };
+    el.addEventListener("dragover", over);
+    el.addEventListener("dragleave", leave);
+    el.addEventListener("drop", drop);
+    return () => {
+      el.removeEventListener("dragover", over);
+      el.removeEventListener("dragleave", leave);
+      el.removeEventListener("drop", drop);
+    };
+  }, [fileUp]);
+
+  function uploadAll(list: FileList) {
+    const c = clientRef.current, Guac = guacRef.current;
+    if (!c || !Guac || !fileUp) return;
+    setPanel("files");
+    Array.from(list).forEach((f) => uploadFile(Guac, c, f, track));
+  }
+  uploadRef.current = uploadAll;
 
   function ctrlAltDel() {
     const c = clientRef.current;
@@ -139,7 +184,13 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
         <span className="text-white/60">{STATES[state] ?? ""}</span>
         <div className="ms-auto flex gap-2">
           <ClipboardChip status={clip} onAllow={() => void syncRef.current?.requestPermission()}
-            onOpenPanel={() => setPanel((p) => !p)} />
+            onOpenPanel={() => setPanel((p) => (p === "clipboard" ? null : "clipboard"))} />
+          {(fileUp || fileDown) && (
+            <Button variant="ghost" className="h-8" aria-pressed={panel === "files"}
+              onClick={() => setPanel((p) => (p === "files" ? null : "files"))}>
+              Files{transfers.some((t) => t.state === "running") ? " ⋯" : ""}
+            </Button>
+          )}
           <Button variant="ghost" className="h-8" onClick={ctrlAltDel}>Ctrl+Alt+Del</Button>
           <Button variant="ghost" className="h-8" onClick={() => document.documentElement.requestFullscreen?.()}>
             Fullscreen
@@ -147,13 +198,23 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
           <Button className="h-8" onClick={onClose}>Disconnect</Button>
         </div>
       </div>
+      {/* Drop target for uploads; the keyboard-accessible path is the Files panel. */}
       <div ref={host} className="relative min-h-0 flex-1 overflow-hidden" />
+      {dragging && (
+        <div className="pointer-events-none absolute inset-x-6 bottom-6 top-16 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-black/40 text-sm text-white">
+          Drop to upload to Windows (This PC → Transfer)
+        </div>
+      )}
       {/* Off-screen paste target: receives the native paste event for Ctrl/Cmd+V. */}
       <textarea ref={pasteTarget} aria-hidden="true" tabIndex={-1} defaultValue=""
         className="pointer-events-none fixed -start-[9999px] top-0 size-px opacity-0" />
-      {panel && clip !== "off" && (
+      {panel === "files" && (
+        <TransferPanel transfers={transfers} canUpload={fileUp} canDownload={fileDown} maxMB={files.maxMB}
+          onPick={uploadAll} onClose={() => setPanel(null)} />
+      )}
+      {panel === "clipboard" && clip !== "off" && (
         <ClipboardPanel remoteText={remoteText} canSend={upload}
-          onSend={(text) => syncRef.current?.send(text)} onClose={() => setPanel(false)} />
+          onSend={(text) => syncRef.current?.send(text)} onClose={() => setPanel(null)} />
       )}
       {toast && (
         <div role="status" className="pointer-events-none absolute bottom-6 start-1/2 -translate-x-1/2 rounded-lg bg-surface px-3 py-2 text-xs text-ink shadow-sm">

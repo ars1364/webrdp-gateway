@@ -13,6 +13,7 @@ import (
 
 	"github.com/ars1364/webrdp-gateway/backend/internal/config"
 	"github.com/ars1364/webrdp-gateway/backend/internal/core"
+	"github.com/ars1364/webrdp-gateway/backend/internal/drive"
 	"github.com/ars1364/webrdp-gateway/backend/internal/guac"
 	"github.com/ars1364/webrdp-gateway/backend/internal/metrics"
 	"github.com/ars1364/webrdp-gateway/backend/internal/seal"
@@ -36,6 +37,7 @@ type Server struct {
 	ticketRL *rateLimiter
 	upgrader websocket.Upgrader
 	features guac.Features
+	drives   *drive.Manager // nil = file transfer unavailable
 	metrics  *metrics.Registry
 	log      *slog.Logger
 }
@@ -45,13 +47,14 @@ type Deps struct {
 	Sealer  *seal.Sealer
 	Dial    DialFunc
 	Resolve ResolveFunc
+	Drives  *drive.Manager
 	Metrics *metrics.Registry
 	Log     *slog.Logger
 }
 
 func New(cfg *config.Config, d Deps) *Server {
 	s := &Server{
-		cfg: cfg, repo: d.Repo, sealer: d.Sealer, dial: d.Dial, resolve: d.Resolve,
+		cfg: cfg, repo: d.Repo, sealer: d.Sealer, dial: d.Dial, resolve: d.Resolve, drives: d.Drives,
 		metrics:  d.Metrics,
 		log:      d.Log,
 		tickets:  newTicketStore(30 * time.Second),
@@ -59,7 +62,7 @@ func New(cfg *config.Config, d Deps) *Server {
 		loginRL:  newRateLimiter(10, time.Minute),
 		ticketRL: newRateLimiter(30, time.Minute),
 		features: guac.Features{ClipboardUpload: cfg.ClipboardUpload, ClipboardDownload: cfg.ClipboardDownload,
-			FileTransfer: cfg.FeatureFileTransfer},
+			FileUpload: cfg.FileUpload, FileDownload: cfg.FileDownload},
 	}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  16 << 10,
@@ -70,6 +73,10 @@ func New(cfg *config.Config, d Deps) *Server {
 	s.metrics.Help("http_requests_total", "HTTP requests by method and status class.")
 	s.metrics.Help("rdp_sessions_active", "Open RDP tunnels.")
 	s.metrics.Help("login_failures_total", "Rejected login attempts.")
+	s.metrics.Help("file_transfers_total", "Files moved through the Transfer drive, by direction.")
+	if s.drives == nil {
+		s.features.FileUpload, s.features.FileDownload = false, false
+	}
 	return s
 }
 

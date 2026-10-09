@@ -105,9 +105,23 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.tunnels.Release(sess.UserID)
-	conn, rd, uuid, err := s.dial(r.Context(), s.cfg.GuacdAddr, t, s.features)
 	ip := clientIP(r)
 	target := fmt.Sprintf("%s:%d", t.IP, t.Port)
+
+	feats := s.features
+	ctx, cancel := context.WithCancelCause(context.WithoutCancel(r.Context()))
+	defer cancel(nil)
+	if s.drives != nil && (feats.FileUpload || feats.FileDownload) {
+		path, err := s.drives.Prepare(newUUID())
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		defer func() { _ = s.drives.Remove(path) }()
+		feats.DrivePath = path
+		go s.drives.Watch(ctx, path, cancel)
+	}
+	conn, rd, uuid, err := s.dial(r.Context(), s.cfg.GuacdAddr, t, feats)
 	if err != nil {
 		s.log.Warn("rdp connect failed", "user", sess.Username, "target", target, "err", err)
 		s.repo.Audit(r.Context(), sess.UserID, "rdp.failed", target, ip, map[string]any{"label": tk.label})
@@ -121,7 +135,11 @@ func (s *Server) tunnel(w http.ResponseWriter, r *http.Request) {
 	}
 	s.repo.Audit(r.Context(), sess.UserID, "rdp.open", target, ip, map[string]any{"label": tk.label})
 	s.metrics.Gauge("rdp_sessions_active", 1)
-	guac.Bridge(ws, conn, rd, uuid, s.cfg.MaxTunnelDuration)
+	guac.Bridge(ws, conn, rd, uuid, guac.BridgeOpts{Ctx: ctx, MaxDur: s.cfg.MaxTunnelDuration,
+		OnFile: func(dir, name string) {
+			s.metrics.Inc("file_transfers_total", "direction", dir)
+			s.repo.Audit(ctx, sess.UserID, "file."+dir, truncate(name, 255), ip, map[string]any{"target": target})
+		}})
 	s.metrics.Gauge("rdp_sessions_active", -1)
 	s.repo.Audit(context.WithoutCancel(r.Context()), sess.UserID, "rdp.close", target, ip, map[string]any{"label": tk.label})
 }

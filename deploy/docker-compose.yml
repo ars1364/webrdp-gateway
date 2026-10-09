@@ -38,6 +38,8 @@ services:
     read_only: true
     # FreeRDP writes its known-hosts/config under $HOME; keep it ephemeral.
     tmpfs: ["/tmp:size=64m", "/home/guacd:size=16m,uid=1000,gid=1000"]
+    # Per-session "Transfer" drives; the API creates, caps and deletes them.
+    volumes: ["./drives:/drives"]
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 4822 || exit 1"]
       interval: 30s
@@ -65,11 +67,18 @@ services:
       FEATURE_CLIPBOARD_UPLOAD: ${FEATURE_CLIPBOARD_UPLOAD:-}
       FEATURE_CLIPBOARD_DOWNLOAD: ${FEATURE_CLIPBOARD_DOWNLOAD:-}
       FEATURE_FILE_TRANSFER: ${FEATURE_FILE_TRANSFER:-false}
+      FEATURE_FILE_UPLOAD: ${FEATURE_FILE_UPLOAD:-}
+      FEATURE_FILE_DOWNLOAD: ${FEATURE_FILE_DOWNLOAD:-}
+      MAX_DRIVE_MB: ${MAX_DRIVE_MB:-1024}
+      DRIVE_ROOT: /drives
       GUACD_ADDR: guacd:4822
       ALLOW_PRIVATE_TARGETS: ${ALLOW_PRIVATE_TARGETS:-false}
       SESSION_TTL: ${SESSION_TTL:-12h}
     read_only: true
     cap_drop: [ALL]
+    # Same uid as guacd so the API can size-check and delete session drives.
+    user: "1000:1000"
+    volumes: ["./drives:/drives"]
     depends_on:
       db: { condition: service_healthy }
       guacd: { condition: service_started }

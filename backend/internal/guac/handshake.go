@@ -26,10 +26,14 @@ type Target struct {
 
 // Feature flags (env FEATURE_CLIPBOARD / FEATURE_FILE_TRANSFER).
 type Features struct {
-	ClipboardUpload   bool // local → remote paste allowed
-	ClipboardDownload bool // remote → local copy allowed
-	FileTransfer      bool
+	ClipboardUpload   bool   // local → remote paste allowed
+	ClipboardDownload bool   // remote → local copy allowed
+	FileUpload        bool   // browser → "Transfer" drive
+	FileDownload      bool   // drive → browser (files dropped in Transfer\Download)
+	DrivePath         string // per-session directory inside guacd; "" = no drive
 }
+
+func (f Features) drive() bool { return f.DrivePath != "" && (f.FileUpload || f.FileDownload) }
 
 // Dial connects to guacd and completes the RDP handshake. On success the
 // returned reader holds any bytes guacd sent after "ready".
@@ -115,13 +119,15 @@ func rdpParams(t Target, f Features) map[string]string {
 		"resize-method":     "display-update",
 		"disable-copy":      b(!f.ClipboardDownload),
 		"disable-paste":     b(!f.ClipboardUpload),
-		"enable-drive":      b(f.FileTransfer),
+		"enable-drive":      b(f.drive()),
+		"drive-name":        "Transfer",
+		"drive-path":        f.DrivePath,
+		"create-drive-path": b(f.drive()),
 		"disable-audio":     "true",
 		"enable-printing":   "false",
 		"server-layout":     "en-us-qwerty",
-		"disable-download":  b(!f.FileTransfer),
-		"disable-upload":    b(!f.FileTransfer),
-		"create-drive-path": "false",
+		"disable-download":  b(!f.FileDownload),
+		"disable-upload":    b(!f.FileUpload),
 	}
 	for k, v := range qualityParams(t.Quality) {
 		params[k] = v

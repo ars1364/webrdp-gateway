@@ -16,6 +16,7 @@
 | Sessions | until expiry (`SESSION_TTL`, 12 h) | hourly reaper |
 | Idempotency keys | 24 h (`IDEMPOTENCY_TTL`) | hourly reaper |
 | Audit log | 180 days (`AUDIT_RETENTION_DAYS`) | hourly reaper; rows are append-only (DB trigger blocks UPDATE) |
+| Transfer drive files | session lifetime; folder deleted on disconnect, all purged at API start; capped at `MAX_DRIVE_MB` (session closed when exceeded) | `drive.Manager` |
 | Deleted connections | row kept (soft delete), sealed password destroyed on delete | `DeleteConnection` |
 
 ## CSRF

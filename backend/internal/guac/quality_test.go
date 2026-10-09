@@ -40,7 +40,9 @@ func TestFeatureParams(t *testing.T) {
 		{"clipboard both ways", Features{ClipboardUpload: true, ClipboardDownload: true}, "false", "false", "false"},
 		{"upload only", Features{ClipboardUpload: true}, "true", "false", "false"},
 		{"download only", Features{ClipboardDownload: true}, "false", "true", "false"},
-		{"file transfer on", Features{FileTransfer: true}, "true", "true", "true"},
+		{"files on, no drive path", Features{FileUpload: true}, "true", "true", "false"},
+		{"files on with drive", Features{FileUpload: true, FileDownload: true, DrivePath: "/drives/x"}, "true", "true", "true"},
+		{"drive path but files off", Features{DrivePath: "/drives/x"}, "true", "true", "false"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

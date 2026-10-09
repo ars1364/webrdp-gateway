@@ -25,9 +25,12 @@ type Config struct {
 	MaxTunnelDuration   time.Duration
 	AuditRetentionDays  int
 	IdempotencyTTL      time.Duration
-	ClipboardUpload     bool // local → remote (guacd disable-paste)
-	ClipboardDownload   bool // remote → local (guacd disable-copy)
-	FeatureFileTransfer bool
+	ClipboardUpload     bool   // local → remote (guacd disable-paste)
+	ClipboardDownload   bool   // remote → local (guacd disable-copy)
+	FileUpload          bool   // local → remote drive (guacd disable-upload)
+	FileDownload        bool   // remote drive → local (guacd disable-download)
+	DriveRoot           string // shared guacd/api volume holding per-session drives
+	MaxDriveBytes       int64
 	KeyID               byte
 	Keys                map[byte][]byte // current + optional previous KEK
 }
@@ -54,7 +57,15 @@ func Load() (*Config, error) {
 	clip := env("FEATURE_CLIPBOARD", "true")
 	parse("FEATURE_CLIPBOARD_UPLOAD", clip, func(v string) (err error) { c.ClipboardUpload, err = strconv.ParseBool(v); return })
 	parse("FEATURE_CLIPBOARD_DOWNLOAD", clip, func(v string) (err error) { c.ClipboardDownload, err = strconv.ParseBool(v); return })
-	parse("FEATURE_FILE_TRANSFER", "false", func(v string) (err error) { c.FeatureFileTransfer, err = strconv.ParseBool(v); return })
+	files := env("FEATURE_FILE_TRANSFER", "false")
+	parse("FEATURE_FILE_UPLOAD", files, func(v string) (err error) { c.FileUpload, err = strconv.ParseBool(v); return })
+	parse("FEATURE_FILE_DOWNLOAD", files, func(v string) (err error) { c.FileDownload, err = strconv.ParseBool(v); return })
+	parse("MAX_DRIVE_MB", "1024", func(v string) error {
+		n, err := strconv.ParseInt(v, 10, 64)
+		c.MaxDriveBytes = n << 20
+		return err
+	})
+	c.DriveRoot = env("DRIVE_ROOT", "/drives")
 	parse("MAX_TUNNELS", "20", func(v string) (err error) { c.MaxTunnels, err = strconv.Atoi(v); return })
 	parse("MAX_TUNNELS_PER_USER", "5", func(v string) (err error) { c.MaxTunnelsPerUser, err = strconv.Atoi(v); return })
 	parse("AUDIT_RETENTION_DAYS", "180", func(v string) (err error) { c.AuditRetentionDays, err = strconv.Atoi(v); return })

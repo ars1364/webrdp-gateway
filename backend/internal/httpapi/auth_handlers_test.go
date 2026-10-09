@@ -101,7 +101,7 @@ func TestMeReportsFeatureFlags(t *testing.T) {
 	id, _ := h.addUser("a", "pw", "admin")
 	w := h.do(http.MethodGet, "/api/v1/auth/me", nil, withCookie(h.session(id)))
 	tests := []struct{ want string }{
-		{`"clipboard_upload":true`}, {`"clipboard_download":false`}, {`"file_transfer":false`},
+		{`"clipboard_upload":true`}, {`"clipboard_download":false`}, {`"file_upload":false`}, {`"file_download":false`},
 	}
 	for _, tc := range tests {
 		if !strings.Contains(w.Body.String(), tc.want) {

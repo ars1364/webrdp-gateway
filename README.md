@@ -47,7 +47,7 @@ Docs: [API catalogue](docs/API.md) · [Security ops](docs/SECURITY.md) · [Air-g
 
 1. ✅ RDP (keyboard, mouse, dynamic resolution, Ctrl+Alt+Del, quality profiles)
 2. ✅ Clipboard, text both ways: Ctrl/Cmd+V interception (no permission prompt), sync on click/keypress, status chip, toast, Mac Cmd→Ctrl, private manual panel; per-direction policy `FEATURE_CLIPBOARD_UPLOAD` / `_DOWNLOAD`
-3. ⏳ File transfer (`FEATURE_FILE_TRANSFER`, guacd drive + upload/download)
+3. ✅ File transfer: drag-and-drop / picker uploads into a per-session "Transfer" drive, auto-download from `Transfer\Download`, progress, size cap (`MAX_DRIVE_MB`), per-direction policy `FEATURE_FILE_UPLOAD` / `_DOWNLOAD`, every file audited
 
 ## Run it
 

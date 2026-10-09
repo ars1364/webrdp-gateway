@@ -49,7 +49,8 @@ export type Me = {
   username: string;
   role: string;
   expires_at: string;
-  features: { clipboard_upload: boolean; clipboard_download: boolean; file_transfer: boolean };
+  max_drive_mb: number;
+  features: { clipboard_upload: boolean; clipboard_download: boolean; file_upload: boolean; file_download: boolean };
 };
 
 // Send exactly the DTO fields: the API rejects unknown keys (mass-assignment guard).

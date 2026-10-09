@@ -19,6 +19,7 @@ import (
 
 	"github.com/ars1364/webrdp-gateway/backend/internal/config"
 	"github.com/ars1364/webrdp-gateway/backend/internal/db"
+	"github.com/ars1364/webrdp-gateway/backend/internal/drive"
 	"github.com/ars1364/webrdp-gateway/backend/internal/guac"
 	"github.com/ars1364/webrdp-gateway/backend/internal/httpapi"
 	"github.com/ars1364/webrdp-gateway/backend/internal/metrics"
@@ -74,10 +75,16 @@ func main() {
 		os.Exit(2)
 	}
 
+	drives := drive.New(cfg.DriveRoot, cfg.MaxDriveBytes)
+	if drives == nil {
+		log.Warn("file transfer disabled: drive root not writable", "root", cfg.DriveRoot)
+	} else if err := drives.PurgeAll(); err != nil {
+		log.Error("drive purge", "err", err)
+	}
 	srv := &http.Server{
 		Addr: cfg.ListenAddr,
 		Handler: httpapi.New(cfg, httpapi.Deps{
-			Repo: st, Sealer: sealer, Dial: guac.Dial, Resolve: netguard.Resolve,
+			Repo: st, Sealer: sealer, Dial: guac.Dial, Resolve: netguard.Resolve, Drives: drives,
 			Metrics: metrics.New(), Log: log,
 		}).Routes(),
 		ReadHeaderTimeout: 10 * time.Second,
