@@ -52,6 +52,8 @@ Docs: [API catalogue](docs/API.md) · [Security ops](docs/SECURITY.md) · [Air-g
 4. ✅ Screenshot (PNG) and local screen recording (WebM), both client-side
 5. ✅ Server-side session recording (`FEATURE_SESSION_RECORDING`) with in-browser playback, retention, size cap; keystrokes excluded by default
 
+6. ✅ Keyboard: shortcuts menu (Ctrl+Alt+Del, Task Manager, Win+R/E/D/L/X, snip, Alt+Tab, Alt+F4, PrtScr…), F1–F12, sticky Ctrl/Alt/Shift/Win, fallback hotkeys (Ctrl+Alt+End, Alt+PgUp, Alt+Home), fullscreen Keyboard Lock (Chromium), type text as keystrokes (login screen / UAC), auto-release of stuck keys
+
 ## Run it
 
 ```bash

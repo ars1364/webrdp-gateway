@@ -5,7 +5,7 @@ import type * as G from "guacamole-common-js";
 import { ClipboardSync, type ClipStatus } from "@/lib/clipboardSync";
 import { uploadFile, type Transfer } from "@/lib/fileTransfer";
 import { receiveStream, RemoteFs } from "@/lib/remoteFs";
-import { attachKeyboard } from "@/lib/rdpKeyboard";
+import { attachKeyboard, type KeyboardHandle } from "@/lib/rdpKeyboard";
 import { openInExplorer } from "@/lib/remoteKeys";
 import { ClipboardChip } from "./ClipboardChip";
 import { ClipboardPanel } from "./ClipboardPanel";
@@ -13,6 +13,9 @@ import { Modal } from "./Modal";
 import { SessionToolbar } from "./SessionToolbar";
 import { TransferPanel } from "./TransferPanel";
 import { useCapture } from "./useCapture";
+import { useSessionKeys } from "./useSessionKeys";
+import { KeysMenu } from "./KeysMenu";
+import { TypeTextDialog } from "./TypeTextDialog";
 import { Button } from "./ui";
 
 export type ClipboardPolicy = { upload: boolean; download: boolean };
@@ -50,7 +53,12 @@ export function RdpViewer({ ticket, label, clipboard, files, serverRecorded, onC
   const [clip, setClip] = useState<ClipStatus>("off");
   const [remoteText, setRemoteText] = useState("");
   const [toast, setToast] = useState("");
-  const [panel, setPanel] = useState<"clipboard" | "files" | null>(null);
+  const [panel, setPanel] = useState<"clipboard" | "files" | "keys" | null>(null);
+  const [typing, setTyping] = useState(false);
+  const kbdRef = useRef<KeyboardHandle | null>(null);
+  const keys = useSessionKeys(clientRef, kbdRef);
+  const takeStickyRef = useRef(keys.takeSticky);
+  takeStickyRef.current = keys.takeSticky;
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [dragging, setDragging] = useState(false);
   const guacRef = useRef<typeof G | null>(null);
@@ -132,10 +140,12 @@ export function RdpViewer({ ticket, label, clipboard, files, serverRecorded, onC
       };
       view.addEventListener("mousedown", onDown);
 
-      const detachKeys = attachKeyboard(Guac, client, {
-        interceptPaste: upload, pasteTarget: target,
+      const kbd = attachKeyboard(Guac, client, {
+        interceptPaste: upload, pasteTarget: target, takeSticky: () => takeStickyRef.current(),
         onGesture: () => void sync.gesture(), onPaste: (t) => sync.pasted(t),
       });
+
+      kbdRef.current = kbd;
 
       let t: ReturnType<typeof setTimeout>;
       const onResize = () => {
@@ -154,7 +164,8 @@ export function RdpViewer({ ticket, label, clipboard, files, serverRecorded, onC
       cleanup = () => {
         window.removeEventListener("resize", onResize);
         view.removeEventListener("mousedown", onDown);
-        detachKeys();
+        kbd.detach();
+        kbdRef.current = null;
         client.disconnect();
       };
     })();
@@ -195,19 +206,14 @@ export function RdpViewer({ ticket, label, clipboard, files, serverRecorded, onC
   }
   uploadRef.current = uploadAll;
 
-  function ctrlAltDel() {
-    const c = clientRef.current;
-    if (!c) return;
-    const keys = [0xffe3, 0xffe9, 0xffff]; // Control_L, Alt_L, Delete
-    keys.forEach((k) => c.sendKeyEvent(1, k));
-    [...keys].reverse().forEach((k) => c.sendKeyEvent(0, k));
-  }
-
   return (
     <Modal variant="fullscreen" label={`Remote desktop ${label}`} onClose={onClose} closeOnEscape={false}>
       <SessionToolbar label={label} stateText={STATES[state] ?? ""} recording={capture.recording}
         elapsed={capture.elapsed} serverRecorded={serverRecorded} onScreenshot={() => void capture.shoot()}
-        onToggleRecord={() => void capture.toggleRecord()} onCtrlAltDel={ctrlAltDel} onDisconnect={onClose}>
+        onToggleRecord={() => void capture.toggleRecord()} onDisconnect={onClose}
+        fullscreen={keys.fullscreen} onToggleFullscreen={() => void keys.toggleFullscreen()}
+        keysOpen={panel === "keys"} stickyCount={keys.sticky.size}
+        onToggleKeys={() => setPanel((p) => (p === "keys" ? null : "keys"))}>
         <ClipboardChip status={clip} onAllow={() => void syncRef.current?.requestPermission()}
           onOpenPanel={() => setPanel((p) => (p === "clipboard" ? null : "clipboard"))} />
         {(fileUp || fileDown) && (
@@ -227,6 +233,16 @@ export function RdpViewer({ ticket, label, clipboard, files, serverRecorded, onC
       {/* Off-screen paste target: receives the native paste event for Ctrl/Cmd+V. */}
       <textarea ref={pasteTarget} aria-hidden="true" tabIndex={-1} defaultValue=""
         className="pointer-events-none fixed -start-[9999px] top-0 size-px opacity-0" />
+      {panel === "keys" && (
+        <KeysMenu sticky={keys.sticky} onToggleSticky={keys.toggleSticky} onCombo={keys.combo}
+          onTypeText={() => setTyping(true)} onReleaseAll={keys.releaseAll} onClose={() => setPanel(null)} />
+      )}
+      {typing && <TypeTextDialog onType={keys.type} onClose={() => setTyping(false)} />}
+      {keys.fullscreen === "locked" && (
+        <div role="status" className="pointer-events-none absolute start-1/2 top-14 -translate-x-1/2 rounded-lg bg-surface/90 px-3 py-1.5 text-xs text-ink shadow-sm">
+          Keyboard locked to Windows: Win, Alt+Tab and Esc go to the remote. Hold Esc to exit fullscreen.
+        </div>
+      )}
       {panel === "files" && (
         <TransferPanel transfers={transfers} canUpload={fileUp} canDownload={fileDown} maxMB={files.maxMB}
           fs={fs} onTrack={track}

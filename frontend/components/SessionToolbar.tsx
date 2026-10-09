@@ -13,7 +13,11 @@ type Props = {
   serverRecorded: boolean;
   onScreenshot: () => void;
   onToggleRecord: () => void;
-  onCtrlAltDel: () => void;
+  fullscreen: "off" | "on" | "locked";
+  onToggleFullscreen: () => void;
+  keysOpen: boolean;
+  stickyCount: number;
+  onToggleKeys: () => void;
   onDisconnect: () => void;
 };
 
@@ -36,9 +40,13 @@ export function SessionToolbar(p: Props) {
           aria-pressed={p.recording} title={p.recording ? "Stop and save the video" : "Record the screen to a video file on this PC"}>
           {p.recording ? `■ Stop ${formatElapsed(p.elapsed)}` : "● Record"}
         </Button>
-        <Button variant="ghost" className="h-8" onClick={p.onCtrlAltDel}>Ctrl+Alt+Del</Button>
-        <Button variant="ghost" className="h-8" onClick={() => document.documentElement.requestFullscreen?.()}>
-          Fullscreen
+        <Button variant="ghost" className="h-8" aria-pressed={p.keysOpen} onClick={p.onToggleKeys}
+          title="Shortcuts, F-keys, sticky keys, type text">
+          Keys{p.stickyCount ? ` (${p.stickyCount} latched)` : ""} ▾
+        </Button>
+        <Button variant="ghost" className="h-8" onClick={p.onToggleFullscreen}
+          title="Fullscreen; in Chrome/Edge also sends Win/Alt+Tab/Esc to Windows">
+          {p.fullscreen === "off" ? "Fullscreen" : "Exit fullscreen"}
         </Button>
         <Button className="h-8" onClick={p.onDisconnect}>Disconnect</Button>
       </div>
