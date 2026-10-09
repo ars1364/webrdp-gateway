@@ -98,6 +98,19 @@ jobs:
           docker run --rm -v "$PWD:/src" "$TRIVY_IMAGE" fs --scanners vuln,misconfig,secret
           --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --skip-dirs /src/frontend/node_modules /src
 
+  third-party-images:
+    name: trivy (third-party runtime images, report only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # postgres/guacd are upstream images we don't build: report, don't gate.
+      # Dependabot bumps their digests; review this output on every bump.
+      - run: |
+          for img in $(grep -oE 'image: [a-z][^$ ]+@sha256:[a-f0-9]+' deploy/docker-compose.yml | awk '{print $2}'); do
+            docker run --rm "$TRIVY_IMAGE" image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 0 --quiet "$img"
+          done
+
   sbom:
     runs-on: ubuntu-latest
     timeout-minutes: 10

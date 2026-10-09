@@ -10,6 +10,8 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/out /usr/share/nginx/html
 COPY --from=build /app/csp-hashes.txt /tmp/csp-hashes.txt
 USER root
+# Base image lags Alpine security fixes; patch at build time (trivy gate in CI).
+RUN apk upgrade --no-cache && apk del --no-cache curl
 RUN sed -i "s|__SCRIPT_HASHES__|$(cat /tmp/csp-hashes.txt)|" /etc/nginx/conf.d/default.conf && rm /tmp/csp-hashes.txt
 USER 101
 EXPOSE 8080
