@@ -42,6 +42,12 @@ export type ConnectionInput = {
 
 export type Me = { username: string; role: string; expires_at: string };
 
+// Send exactly the DTO fields: the API rejects unknown keys (mass-assignment guard).
+function toInput(c: ConnectionInput): ConnectionInput {
+  const { name, host, port, username, domain, password, security, ignore_cert } = c;
+  return { name, host, port, username, domain, password, security, ignore_cert };
+}
+
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api/v1${path}`, {
     method,
@@ -63,11 +69,11 @@ export const api = {
   logout: () => call<{ ok: boolean }>("POST", "/auth/logout"),
   me: () => call<Me>("GET", "/auth/me"),
   listConnections: () => call<Connection[]>("GET", "/connections"),
-  createConnection: (c: ConnectionInput) => call<Connection>("POST", "/connections", c),
-  updateConnection: (id: string, c: ConnectionInput) => call<Connection>("PUT", `/connections/${id}`, c),
+  createConnection: (c: ConnectionInput) => call<Connection>("POST", "/connections", toInput(c)),
+  updateConnection: (id: string, c: ConnectionInput) => call<Connection>("PUT", `/connections/${id}`, toInput(c)),
   deleteConnection: (id: string) => call<{ ok: boolean }>("DELETE", `/connections/${id}`),
   ticketFor: (connectionId: string) =>
     call<{ ticket: string }>("POST", "/tunnel/ticket", { connection_id: connectionId }),
-  ticketAdHoc: (c: Omit<ConnectionInput, "name">) =>
-    call<{ ticket: string }>("POST", "/tunnel/ticket", { ad_hoc: { ...c, name: "" } }),
+  ticketAdHoc: (c: ConnectionInput) =>
+    call<{ ticket: string }>("POST", "/tunnel/ticket", { ad_hoc: toInput(c) }),
 };

@@ -52,13 +52,9 @@ export function RdpViewer({ ticket, label, onClose }: Props) {
       display.onresize = fit;
 
       const mouse = new Guac.Mouse(view);
-      mouse.onEach(["mousedown", "mouseup", "mousemove"], (ev) => {
-        const e = ev as unknown as G.Mouse.Event;
-        const scale = display.getScale();
-        const st = e.state;
-        client.sendMouseState(new Guac.Mouse.State(
-          st.x / scale, st.y / scale, st.left, st.middle, st.right, st.up, st.down), true);
-      });
+      // applyDisplayScale=true: the client maps screen coords back to remote pixels.
+      mouse.onEach(["mousedown", "mouseup", "mousemove"], (ev) =>
+        client.sendMouseState((ev as unknown as G.Mouse.Event).state, true));
       display.showCursor(true);
       mouse.onEach(["mouseout"], () => display.showCursor(false));
 
