@@ -58,7 +58,7 @@ func New(cfg *config.Config, d Deps) *Server {
 		tunnels:  newTunnelLimiter(cfg.MaxTunnels, cfg.MaxTunnelsPerUser),
 		loginRL:  newRateLimiter(10, time.Minute),
 		ticketRL: newRateLimiter(30, time.Minute),
-		features: guac.Features{Clipboard: false, FileTransfer: false},
+		features: guac.Features{Clipboard: cfg.FeatureClipboard, FileTransfer: cfg.FeatureFileTransfer},
 	}
 	s.upgrader = websocket.Upgrader{
 		ReadBufferSize:  16 << 10,

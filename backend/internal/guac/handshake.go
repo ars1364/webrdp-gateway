@@ -24,7 +24,7 @@ type Target struct {
 	DPI        int
 }
 
-// Feature flags. Phase 1 ships RDP only: clipboard and drive stay off.
+// Feature flags (env FEATURE_CLIPBOARD / FEATURE_FILE_TRANSFER).
 type Features struct {
 	Clipboard    bool
 	FileTransfer bool

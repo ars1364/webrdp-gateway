@@ -45,7 +45,7 @@ this product, with the reason. Keep this file honest; CI checks the parts it can
 | 8 | Env config, stateless | Done | `config.Load` env-only; `.env.example`; sessions in DB |
 | 8 | Air-gap readiness | Enforced | `scripts/ci/airgap.sh` vs `docs/AIRGAPPED.md`; no CDN, system fonts |
 | 8 | Observability | Done | JSON logs with correlation_id, `/metrics` (admin), container healthchecks. Tracing: N/A for now (single service) |
-| 8 | Feature flags | Done | `guac.Features` (clipboard, file transfer) surfaced in `/auth/me` |
+| 8 | Feature flags | Tested | `FEATURE_CLIPBOARD` / `FEATURE_FILE_TRANSFER` → `guac.Features` → guacd params + `/auth/me` (`TestFeatureParams`, `TestMeReportsFeatureFlags`) |
 | 9 | Design tokens / palette (light + dark) | Enforced | `lib/tokens.ts` + `globals.css`; ESLint bans inline hex |
 | 9 | Component reuse | Done | `ui.tsx`, shared `Modal` shell (viewer + confirm) |
 | 9 | Accessibility | Enforced | `eslint-plugin-jsx-a11y` strict; labelled inputs, `role=dialog`, focus restore |

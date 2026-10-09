@@ -45,9 +45,9 @@ Docs: [API catalogue](docs/API.md) · [Security ops](docs/SECURITY.md) · [Air-g
 
 ## Roadmap
 
-1. ✅ RDP (keyboard, mouse, dynamic resolution, Ctrl+Alt+Del)
-2. ⏳ Clipboard (`Features.Clipboard`)
-3. ⏳ File transfer (`Features.FileTransfer`, guacd drive + upload/download)
+1. ✅ RDP (keyboard, mouse, dynamic resolution, Ctrl+Alt+Del, quality profiles)
+2. ✅ Clipboard, text both ways (auto-sync + manual panel; `FEATURE_CLIPBOARD`)
+3. ⏳ File transfer (`FEATURE_FILE_TRANSFER`, guacd drive + upload/download)
 
 ## Run it
 

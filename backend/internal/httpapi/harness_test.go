@@ -44,7 +44,7 @@ func newHarness(t *testing.T) *harness {
 	cfg := &config.Config{
 		AllowedOrigin: testOrigin, AllowedHosts: []string{testHost}, CookieSecure: true,
 		SessionTTL: time.Hour, MaxTunnels: 2, MaxTunnelsPerUser: 1, MaxTunnelDuration: time.Minute,
-		IdempotencyTTL: time.Hour, GuacdAddr: "guacd.invalid:4822",
+		IdempotencyTTL: time.Hour, GuacdAddr: "guacd.invalid:4822", FeatureClipboard: true,
 	}
 	repo := newFakeRepo()
 	failDial := func(context.Context, string, guac.Target, guac.Features) (net.Conn, *guac.Reader, string, error) {

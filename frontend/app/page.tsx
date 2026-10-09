@@ -91,7 +91,10 @@ export default function Home() {
         <ConfirmDialog title={`Delete “${toDelete.name}”?`} body="Its saved password is destroyed. This cannot be undone."
           confirmLabel="Delete" onConfirm={() => remove(toDelete)} onCancel={() => setToDelete(null)} />
       )}
-      {session && <RdpViewer ticket={session.ticket} label={session.label} onClose={() => setSession(null)} />}
+      {session && (
+        <RdpViewer ticket={session.ticket} label={session.label} clipboard={me.features?.clipboard ?? false}
+          onClose={() => setSession(null)} />
+      )}
     </main>
   );
 }

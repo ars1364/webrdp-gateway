@@ -25,6 +25,8 @@ type Config struct {
 	MaxTunnelDuration   time.Duration
 	AuditRetentionDays  int
 	IdempotencyTTL      time.Duration
+	FeatureClipboard    bool
+	FeatureFileTransfer bool
 	KeyID               byte
 	Keys                map[byte][]byte // current + optional previous KEK
 }
@@ -47,6 +49,8 @@ func Load() (*Config, error) {
 	parse("SESSION_TTL", "12h", func(v string) (err error) { c.SessionTTL, err = time.ParseDuration(v); return })
 	parse("MAX_TUNNEL_DURATION", "8h", func(v string) (err error) { c.MaxTunnelDuration, err = time.ParseDuration(v); return })
 	parse("IDEMPOTENCY_TTL", "24h", func(v string) (err error) { c.IdempotencyTTL, err = time.ParseDuration(v); return })
+	parse("FEATURE_CLIPBOARD", "true", func(v string) (err error) { c.FeatureClipboard, err = strconv.ParseBool(v); return })
+	parse("FEATURE_FILE_TRANSFER", "false", func(v string) (err error) { c.FeatureFileTransfer, err = strconv.ParseBool(v); return })
 	parse("MAX_TUNNELS", "20", func(v string) (err error) { c.MaxTunnels, err = strconv.Atoi(v); return })
 	parse("MAX_TUNNELS_PER_USER", "5", func(v string) (err error) { c.MaxTunnelsPerUser, err = strconv.Atoi(v); return })
 	parse("AUDIT_RETENTION_DAYS", "180", func(v string) (err error) { c.AuditRetentionDays, err = strconv.Atoi(v); return })

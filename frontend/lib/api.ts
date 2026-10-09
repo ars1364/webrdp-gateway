@@ -45,7 +45,12 @@ export type ConnectionInput = {
   quality: Quality;
 };
 
-export type Me = { username: string; role: string; expires_at: string };
+export type Me = {
+  username: string;
+  role: string;
+  expires_at: string;
+  features: { clipboard: boolean; file_transfer: boolean };
+};
 
 // Send exactly the DTO fields: the API rejects unknown keys (mass-assignment guard).
 export function toInput(c: ConnectionInput): ConnectionInput {

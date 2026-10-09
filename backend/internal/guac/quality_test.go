@@ -27,3 +27,25 @@ func TestQualityParams(t *testing.T) {
 		})
 	}
 }
+
+func TestFeatureParams(t *testing.T) {
+	tests := []struct {
+		name     string
+		f        Features
+		copyOff  string
+		pasteOff string
+		driveOn  string
+	}{
+		{"all off", Features{}, "true", "true", "false"},
+		{"clipboard on", Features{Clipboard: true}, "false", "false", "false"},
+		{"file transfer on", Features{FileTransfer: true}, "true", "true", "true"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := rdpParams(Target{Width: 800, Height: 600, DPI: 96}, tc.f)
+			if p["disable-copy"] != tc.copyOff || p["disable-paste"] != tc.pasteOff || p["enable-drive"] != tc.driveOn {
+				t.Fatalf("copy=%s paste=%s drive=%s", p["disable-copy"], p["disable-paste"], p["enable-drive"])
+			}
+		})
+	}
+}
