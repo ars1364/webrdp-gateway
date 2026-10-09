@@ -83,7 +83,7 @@ func TestRepoScopingAndConstraints(t *testing.T) {
 	seedUser(t, s, b, "bob")
 
 	c := &core.Connection{ID: "33333333-3333-4333-8333-333333333333", Name: "x", Host: "203.0.113.1",
-		Port: 3389, Security: "any"}
+		Port: 3389, Security: "any", Quality: "balanced"}
 	if err := s.CreateConnection(ctx, a, c); err != nil {
 		t.Fatal(err)
 	}
