@@ -10,13 +10,22 @@ import { openInExplorer } from "@/lib/remoteKeys";
 import { ClipboardChip } from "./ClipboardChip";
 import { ClipboardPanel } from "./ClipboardPanel";
 import { Modal } from "./Modal";
+import { SessionToolbar } from "./SessionToolbar";
 import { TransferPanel } from "./TransferPanel";
+import { useCapture } from "./useCapture";
 import { Button } from "./ui";
 
 export type ClipboardPolicy = { upload: boolean; download: boolean };
 export type FilePolicy = { upload: boolean; download: boolean; maxMB: number };
 
-type Props = { ticket: string; label: string; clipboard: ClipboardPolicy; files: FilePolicy; onClose: () => void };
+type Props = {
+  ticket: string;
+  label: string;
+  clipboard: ClipboardPolicy;
+  files: FilePolicy;
+  serverRecorded: boolean;
+  onClose: () => void;
+};
 
 const STATES = ["Idle", "Connecting…", "Waiting for desktop…", "Connected", "Disconnecting…", "Disconnected"];
 
@@ -31,7 +40,7 @@ const ERRORS: Record<number, string> = {
   516: "Could not resolve or reach the remote desktop.",
 };
 
-export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
+export function RdpViewer({ ticket, label, clipboard, files, serverRecorded, onClose }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const pasteTarget = useRef<HTMLTextAreaElement>(null);
   const clientRef = useRef<G.Client | null>(null);
@@ -45,6 +54,9 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [dragging, setDragging] = useState(false);
   const guacRef = useRef<typeof G | null>(null);
+  const displayRef = useRef<G.Display | null>(null);
+  const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2000); };
+  const capture = useCapture(displayRef, label, flash);
   const { upload, download } = clipboard;
   const fileUp = files.upload, fileDown = files.download;
   const [uploadedToast, setUploadedToast] = useState("");
@@ -80,6 +92,7 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
         client.onfilesystem = (object: G.Object) => setFs(new RemoteFs(Guac, object));
       }
       const display = client.getDisplay();
+      displayRef.current = display;
       const view = display.getElement();
       el.appendChild(view);
 
@@ -192,25 +205,18 @@ export function RdpViewer({ ticket, label, clipboard, files, onClose }: Props) {
 
   return (
     <Modal variant="fullscreen" label={`Remote desktop ${label}`} onClose={onClose} closeOnEscape={false}>
-      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-white/10 bg-stage-bar px-3 text-sm text-white">
-        <span className="truncate font-medium" title={label}>{label}</span>
-        <span className="text-white/60">{STATES[state] ?? ""}</span>
-        <div className="ms-auto flex gap-2">
-          <ClipboardChip status={clip} onAllow={() => void syncRef.current?.requestPermission()}
-            onOpenPanel={() => setPanel((p) => (p === "clipboard" ? null : "clipboard"))} />
-          {(fileUp || fileDown) && (
-            <Button variant="ghost" className="h-8" aria-pressed={panel === "files"}
-              onClick={() => setPanel((p) => (p === "files" ? null : "files"))}>
-              Files{transfers.some((t) => t.state === "running") ? " ⋯" : ""}
-            </Button>
-          )}
-          <Button variant="ghost" className="h-8" onClick={ctrlAltDel}>Ctrl+Alt+Del</Button>
-          <Button variant="ghost" className="h-8" onClick={() => document.documentElement.requestFullscreen?.()}>
-            Fullscreen
+      <SessionToolbar label={label} stateText={STATES[state] ?? ""} recording={capture.recording}
+        elapsed={capture.elapsed} serverRecorded={serverRecorded} onScreenshot={() => void capture.shoot()}
+        onToggleRecord={() => void capture.toggleRecord()} onCtrlAltDel={ctrlAltDel} onDisconnect={onClose}>
+        <ClipboardChip status={clip} onAllow={() => void syncRef.current?.requestPermission()}
+          onOpenPanel={() => setPanel((p) => (p === "clipboard" ? null : "clipboard"))} />
+        {(fileUp || fileDown) && (
+          <Button variant="ghost" className="h-8" aria-pressed={panel === "files"}
+            onClick={() => setPanel((p) => (p === "files" ? null : "files"))}>
+            Files{transfers.some((t) => t.state === "running") ? " ⋯" : ""}
           </Button>
-          <Button className="h-8" onClick={onClose}>Disconnect</Button>
-        </div>
-      </div>
+        )}
+      </SessionToolbar>
       {/* Drop target for uploads; the keyboard-accessible path is the Files panel. */}
       <div ref={host} className="relative min-h-0 flex-1 overflow-hidden" />
       {dragging && (

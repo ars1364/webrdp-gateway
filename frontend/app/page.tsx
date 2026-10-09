@@ -99,7 +99,7 @@ export default function Home() {
             upload: me.features?.file_upload ?? false, download: me.features?.file_download ?? false,
             maxMB: me.max_drive_mb ?? 0,
           }}
-          onClose={() => setSession(null)} />
+          serverRecorded={me.features?.session_recording ?? false} onClose={() => setSession(null)} />
       )}
     </main>
   );
