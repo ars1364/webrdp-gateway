@@ -34,7 +34,7 @@ services:
 
   guacd:
     <<: *hardening
-    image: guacamole/guacd:1.5.5@sha256:38232cae271361ef53db46faf5c49fe64049a1320a05b82c597425b69d6ce77e
+    image: guacamole/guacd:1.6.0@sha256:8974eaa9ba32f713daf311e7cc8cd7e4cdfba1edea39eed75524e78ef4b08f4f
     read_only: true
     # FreeRDP writes its known-hosts/config under $HOME; keep it ephemeral.
     tmpfs: ["/tmp:size=64m", "/home/guacd:size=16m,uid=1000,gid=1000"]
