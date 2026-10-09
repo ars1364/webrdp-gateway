@@ -32,23 +32,12 @@ export function readRemote(Guac: typeof G, stream: G.InputStream, mimetype: stri
   reader.onend = () => done(data);
 }
 
-// Best-effort local clipboard access. Both calls can be refused by the
-// browser (permissions, Firefox/Safari read restrictions): callers fall back
-// to the clipboard panel.
+// Best-effort local write; the browser may refuse without user activation.
 export async function writeLocal(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
     return false;
-  }
-}
-
-export async function readLocal(): Promise<string | null> {
-  try {
-    if (!navigator.clipboard?.readText) return null;
-    return await navigator.clipboard.readText();
-  } catch {
-    return null;
   }
 }

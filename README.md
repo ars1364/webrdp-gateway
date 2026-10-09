@@ -46,7 +46,7 @@ Docs: [API catalogue](docs/API.md) · [Security ops](docs/SECURITY.md) · [Air-g
 ## Roadmap
 
 1. ✅ RDP (keyboard, mouse, dynamic resolution, Ctrl+Alt+Del, quality profiles)
-2. ✅ Clipboard, text both ways (auto-sync + manual panel; `FEATURE_CLIPBOARD`)
+2. ✅ Clipboard, text both ways: Ctrl/Cmd+V interception (no permission prompt), sync on click/keypress, status chip, toast, Mac Cmd→Ctrl, private manual panel; per-direction policy `FEATURE_CLIPBOARD_UPLOAD` / `_DOWNLOAD`
 3. ⏳ File transfer (`FEATURE_FILE_TRANSFER`, guacd drive + upload/download)
 
 ## Run it

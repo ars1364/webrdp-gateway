@@ -2,12 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import type * as G from "guacamole-common-js";
-import { readLocal, readRemote, sendToRemote, writeLocal } from "@/lib/clipboard";
+import { ClipboardSync, type ClipStatus } from "@/lib/clipboardSync";
+import { attachKeyboard } from "@/lib/rdpKeyboard";
+import { ClipboardChip } from "./ClipboardChip";
 import { ClipboardPanel } from "./ClipboardPanel";
 import { Modal } from "./Modal";
 import { Button } from "./ui";
 
-type Props = { ticket: string; label: string; clipboard: boolean; onClose: () => void };
+export type ClipboardPolicy = { upload: boolean; download: boolean };
+
+type Props = { ticket: string; label: string; clipboard: ClipboardPolicy; onClose: () => void };
 
 const STATES = ["Idle", "Connecting…", "Waiting for desktop…", "Connected", "Disconnecting…", "Disconnected"];
 
@@ -24,25 +28,29 @@ const ERRORS: Record<number, string> = {
 
 export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const pasteTarget = useRef<HTMLTextAreaElement>(null);
   const clientRef = useRef<G.Client | null>(null);
-  const guacRef = useRef<typeof G | null>(null);
+  const syncRef = useRef<ClipboardSync | null>(null);
   const [state, setState] = useState(1);
   const [error, setError] = useState("");
+  const [clip, setClip] = useState<ClipStatus>("off");
   const [remoteText, setRemoteText] = useState("");
+  const [toast, setToast] = useState("");
   const [panel, setPanel] = useState(false);
+  const { upload, download } = clipboard;
 
   useEffect(() => {
     let disposed = false;
     let cleanup = () => {};
+    let toastTimer: ReturnType<typeof setTimeout>;
     (async () => {
       const Guac = (await import("guacamole-common-js")).default as unknown as typeof G;
-      const el = host.current;
-      if (disposed || !el) return;
+      const el = host.current, target = pasteTarget.current;
+      if (disposed || !el || !target) return;
 
       const tunnel = new Guac.WebSocketTunnel("/api/v1/tunnel");
       const client = new Guac.Client(tunnel);
       clientRef.current = client;
-      guacRef.current = Guac;
       const display = client.getDisplay();
       const view = display.getElement();
       el.appendChild(view);
@@ -57,52 +65,36 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
       };
       display.onresize = fit;
 
+      const sync = new ClipboardSync(Guac, client, {
+        upload, download, onStatus: setClip,
+        onRemoteText: (text, copied) => {
+          setRemoteText(text);
+          setToast(copied ? "Copied from remote ✓" : "Copied in Windows: click or press a key to finish copying");
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => setToast(""), copied ? 1800 : 4000);
+        },
+      });
+      syncRef.current = sync;
+      void sync.start();
+
       const mouse = new Guac.Mouse(view);
       // applyDisplayScale=true: the client maps screen coords back to remote pixels.
       mouse.onEach(["mousedown", "mouseup", "mousemove"], (ev) =>
         client.sendMouseState((ev as unknown as G.Mouse.Event).state, true));
-      // Native cursor: the remote pointer image becomes the real CSS cursor
-      // (no lag, never invisible). Fall back to the software cursor layer.
+      // Native cursor: the remote pointer image becomes the real CSS cursor.
       display.oncursor = (canvas: HTMLCanvasElement, x: number, y: number) => {
         display.showCursor(!mouse.setCursor(canvas, x, y));
       };
+      const onDown = () => {
+        target.focus({ preventScroll: true });
+        void sync.gesture();
+      };
+      view.addEventListener("mousedown", onDown);
 
-      const kb = new Guac.Keyboard(document);
-      // Keys typed into our own inputs (clipboard panel) stay local.
-      const typingLocally = () => {
-        const a = document.activeElement;
-        return a instanceof HTMLTextAreaElement || a instanceof HTMLInputElement;
-      };
-      kb.onkeydown = (k: number) => {
-        if (typingLocally()) return true;
-        client.sendKeyEvent(1, k);
-        return false;
-      };
-      kb.onkeyup = (k: number) => {
-        if (!typingLocally()) client.sendKeyEvent(0, k);
-      };
-
-      // Clipboard: remote → local on every remote copy; local → remote when
-      // the session regains focus (browser may ask for permission once).
-      let lastLocal = "";
-      const pullLocal = async () => {
-        if (!clipboard) return;
-        const text = await readLocal();
-        if (text !== null && text !== lastLocal) {
-          lastLocal = text;
-          sendToRemote(Guac, client, text);
-        }
-      };
-      if (clipboard) {
-        client.onclipboard = (stream: G.InputStream, mimetype: string) =>
-          readRemote(Guac, stream, mimetype, (text) => {
-            lastLocal = text; // don't echo it straight back
-            setRemoteText(text);
-            void writeLocal(text);
-          });
-        window.addEventListener("focus", pullLocal);
-        view.addEventListener("pointerenter", pullLocal);
-      }
+      const detachKeys = attachKeyboard(Guac, client, {
+        interceptPaste: upload, pasteTarget: target,
+        onGesture: () => void sync.gesture(), onPaste: (t) => sync.pasted(t),
+      });
 
       let t: ReturnType<typeof setTimeout>;
       const onResize = () => {
@@ -116,27 +108,21 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
       client.connect(new URLSearchParams({
         ticket, width: String(el.clientWidth), height: String(el.clientHeight), dpi: String(dpi),
       }).toString());
+      target.focus({ preventScroll: true });
 
       cleanup = () => {
         window.removeEventListener("resize", onResize);
-        window.removeEventListener("focus", pullLocal);
-        view.removeEventListener("pointerenter", pullLocal);
-        kb.onkeydown = null;
-        kb.onkeyup = null;
-        kb.reset();
+        view.removeEventListener("mousedown", onDown);
+        detachKeys();
         client.disconnect();
       };
     })();
     return () => {
       disposed = true;
+      clearTimeout(toastTimer);
       cleanup();
     };
-  }, [ticket, clipboard]);
-
-  function sendClipboard(text: string) {
-    const c = clientRef.current, Guac = guacRef.current;
-    if (c && Guac) sendToRemote(Guac, c, text);
-  }
+  }, [ticket, upload, download]);
 
   function ctrlAltDel() {
     const c = clientRef.current;
@@ -152,11 +138,8 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
         <span className="truncate font-medium" title={label}>{label}</span>
         <span className="text-white/60">{STATES[state] ?? ""}</span>
         <div className="ms-auto flex gap-2">
-          {clipboard && (
-            <Button variant="ghost" className="h-8" aria-pressed={panel} onClick={() => setPanel((p) => !p)}>
-              Clipboard
-            </Button>
-          )}
+          <ClipboardChip status={clip} onAllow={() => void syncRef.current?.requestPermission()}
+            onOpenPanel={() => setPanel((p) => !p)} />
           <Button variant="ghost" className="h-8" onClick={ctrlAltDel}>Ctrl+Alt+Del</Button>
           <Button variant="ghost" className="h-8" onClick={() => document.documentElement.requestFullscreen?.()}>
             Fullscreen
@@ -165,8 +148,17 @@ export function RdpViewer({ ticket, label, clipboard, onClose }: Props) {
         </div>
       </div>
       <div ref={host} className="relative min-h-0 flex-1 overflow-hidden" />
-      {clipboard && panel && (
-        <ClipboardPanel remoteText={remoteText} onSend={sendClipboard} onClose={() => setPanel(false)} />
+      {/* Off-screen paste target: receives the native paste event for Ctrl/Cmd+V. */}
+      <textarea ref={pasteTarget} aria-hidden="true" tabIndex={-1} defaultValue=""
+        className="pointer-events-none fixed -start-[9999px] top-0 size-px opacity-0" />
+      {panel && clip !== "off" && (
+        <ClipboardPanel remoteText={remoteText} canSend={upload}
+          onSend={(text) => syncRef.current?.send(text)} onClose={() => setPanel(false)} />
+      )}
+      {toast && (
+        <div role="status" className="pointer-events-none absolute bottom-6 start-1/2 -translate-x-1/2 rounded-lg bg-surface px-3 py-2 text-xs text-ink shadow-sm">
+          {toast}
+        </div>
       )}
       {(error || state === 5) && (
         <div className="absolute inset-x-0 top-16 mx-auto w-fit max-w-[90vw] rounded-lg border border-red-200 bg-surface px-4 py-3 text-sm text-ink shadow">

@@ -92,7 +92,9 @@ export default function Home() {
           confirmLabel="Delete" onConfirm={() => remove(toDelete)} onCancel={() => setToDelete(null)} />
       )}
       {session && (
-        <RdpViewer ticket={session.ticket} label={session.label} clipboard={me.features?.clipboard ?? false}
+        <RdpViewer ticket={session.ticket} label={session.label} clipboard={{
+            upload: me.features?.clipboard_upload ?? false, download: me.features?.clipboard_download ?? false,
+          }}
           onClose={() => setSession(null)} />
       )}
     </main>

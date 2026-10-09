@@ -104,7 +104,11 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request, sess *core.Sessi
 func (s *Server) me(w http.ResponseWriter, _ *http.Request, sess *core.Session) {
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{
 		"username": sess.Username, "role": sess.Role, "expires_at": sess.ExpiresAt,
-		"features": map[string]bool{"clipboard": s.features.Clipboard, "file_transfer": s.features.FileTransfer},
+		"features": map[string]bool{
+			"clipboard_upload":   s.features.ClipboardUpload,
+			"clipboard_download": s.features.ClipboardDownload,
+			"file_transfer":      s.features.FileTransfer,
+		},
 	}})
 }
 

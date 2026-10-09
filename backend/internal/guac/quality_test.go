@@ -37,7 +37,9 @@ func TestFeatureParams(t *testing.T) {
 		driveOn  string
 	}{
 		{"all off", Features{}, "true", "true", "false"},
-		{"clipboard on", Features{Clipboard: true}, "false", "false", "false"},
+		{"clipboard both ways", Features{ClipboardUpload: true, ClipboardDownload: true}, "false", "false", "false"},
+		{"upload only", Features{ClipboardUpload: true}, "true", "false", "false"},
+		{"download only", Features{ClipboardDownload: true}, "false", "true", "false"},
 		{"file transfer on", Features{FileTransfer: true}, "true", "true", "true"},
 	}
 	for _, tc := range tests {

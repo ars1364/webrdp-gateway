@@ -100,7 +100,9 @@ func TestMeReportsFeatureFlags(t *testing.T) {
 	h := newHarness(t)
 	id, _ := h.addUser("a", "pw", "admin")
 	w := h.do(http.MethodGet, "/api/v1/auth/me", nil, withCookie(h.session(id)))
-	tests := []struct{ want string }{{`"clipboard":true`}, {`"file_transfer":false`}}
+	tests := []struct{ want string }{
+		{`"clipboard_upload":true`}, {`"clipboard_download":false`}, {`"file_transfer":false`},
+	}
 	for _, tc := range tests {
 		if !strings.Contains(w.Body.String(), tc.want) {
 			t.Fatalf("missing %s in %s", tc.want, w.Body)

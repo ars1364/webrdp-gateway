@@ -26,8 +26,9 @@ type Target struct {
 
 // Feature flags (env FEATURE_CLIPBOARD / FEATURE_FILE_TRANSFER).
 type Features struct {
-	Clipboard    bool
-	FileTransfer bool
+	ClipboardUpload   bool // local → remote paste allowed
+	ClipboardDownload bool // remote → local copy allowed
+	FileTransfer      bool
 }
 
 // Dial connects to guacd and completes the RDP handshake. On success the
@@ -112,8 +113,8 @@ func rdpParams(t Target, f Features) map[string]string {
 		"height":            strconv.Itoa(t.Height),
 		"dpi":               strconv.Itoa(t.DPI),
 		"resize-method":     "display-update",
-		"disable-copy":      b(!f.Clipboard),
-		"disable-paste":     b(!f.Clipboard),
+		"disable-copy":      b(!f.ClipboardDownload),
+		"disable-paste":     b(!f.ClipboardUpload),
 		"enable-drive":      b(f.FileTransfer),
 		"disable-audio":     "true",
 		"enable-printing":   "false",
